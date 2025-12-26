@@ -7,18 +7,19 @@ on:
 
 jobs:
   build:
-    # Usamos ubuntu-22.04 (Muy importante, la 24 da problemas)
+    # Usamos ubuntu-22.04 (Estable)
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. Configurar Java 11 (LA CLAVE: Compatible con cmdline-tools antiguos)
-      - name: Set up JDK 11
+      # 1. Configurar Java 17 (El estándar moderno)
+      # Ahora funcionará porque instalaremos el Buildozer nuevo que soporta Java 17.
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
 
       # 2. Configurar Python 3.10
@@ -47,11 +48,14 @@ jobs:
             autoconf libtool pkg-config libffi-dev unzip \
             cmake gettext
 
-      # 5. Instalar Buildozer
-      - name: Install Buildozer
+      # 5. INSTALAR BUILDOZER (EL CAMBIO CLAVE)
+      # Instalamos desde GIT (Master branch) en lugar de PIP.
+      # Esto descarga las herramientas Android nuevas que NO fallan con Java 17.
+      - name: Install Buildozer Master
         run: |
           pip install --upgrade pip
-          pip install --upgrade buildozer cython==0.29.33
+          pip install git+https://github.com/kivy/buildozer.git@master
+          pip install cython==0.29.33
 
       # 6. GENERAR ARCHIVO BUILDOZER.SPEC
       - name: Create Buildozer Spec
@@ -65,7 +69,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Requisitos: Kivy 2.3.0
+          # Requisitos: Kivy 2.3.0 (Moderno)
           requirements = python3,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
           
           orientation = landscape
@@ -73,14 +77,13 @@ jobs:
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
           # Configuración Android
-          # NDK 25b funciona bien con Java 11
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # Rama develop para arreglar fallos
+          # Rama develop para p4a
           p4a.branch = develop
           
           [buildozer]
@@ -89,8 +92,7 @@ jobs:
           EOT
 
       # 7. COMPILAR
-      # Quitamos el 'yes |' porque provoca el error 'Broken Pipe' cuando java falla.
-      # Buildozer aceptará las licencias solo gracias a la config del spec.
+      # Limpiamos variables para que Buildozer descargue sus propias herramientas nuevas
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: ""
