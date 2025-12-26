@@ -7,20 +7,17 @@ on:
 
 jobs:
   build:
-    # Usamos ubuntu-22.04 (Estable)
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. Configurar Python 3.10
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # 2. Liberar espacio en disco
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -28,9 +25,8 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # 3. INSTALAR DEPENDENCIAS (AQUÍ ESTÁ EL ARREGLO)
-      # Hemos añadido 'openjdk-17-jdk'. Esto instala Java y el compilador javac
-      # en la ruta del sistema (/usr/bin), donde Buildozer lo encontrará seguro.
+      # 1. INSTALAMOS JAVA Y LIBRERÍAS DE SOPORTE
+      # Añadimos libncurses5 y libstdc++6 que a veces faltan para firmar el APK
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -41,17 +37,17 @@ jobs:
             zlib1g-dev \
             autoconf libtool pkg-config libffi-dev unzip \
             cmake gettext \
+            libncurses5 libstdc++6 \
             openjdk-17-jdk
 
-      # 4. INSTALAR BUILDOZER (MASTER)
-      # Usamos la versión Master para que descargue las herramientas Android modernas
+      # 2. INSTALAMOS BUILDOZER MASTER
       - name: Install Buildozer Master
         run: |
           pip install --upgrade pip
           pip install git+https://github.com/kivy/buildozer.git@master
           pip install cython==0.29.33
 
-      # 5. GENERAR ARCHIVO BUILDOZER.SPEC
+      # 3. GENERAMOS BUILDOZER.SPEC
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -63,21 +59,18 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Requisitos: Kivy 2.3.0
           requirements = python3,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
           
           orientation = landscape
           fullscreen = 1
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
-          # Configuración Android
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # Rama develop
           p4a.branch = develop
           
           [buildozer]
@@ -85,18 +78,21 @@ jobs:
           warn_on_root = 1
           EOT
 
-      # 6. COMPILAR
-      # Forzamos la variable JAVA_HOME a la ruta nativa de Ubuntu
+      # 4. COMPILAR (EL ARREGLO ESTÁ AQUÍ)
+      # Añadimos Java explícitamente al PATH para que no se pierda al final.
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: ""
           ANDROID_NDK_ROOT: ""
           ANDROID_HOME: ""
           JAVA_HOME: "/usr/lib/jvm/java-17-openjdk-amd64"
+          # ESTO ES LO NUEVO: Forzamos a que encuentre los binarios de Java
+          PATH: "/usr/lib/jvm/java-17-openjdk-amd64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         run: |
+          # Verificamos que Java existe antes de empezar
+          javac -version
           buildozer -v android debug
 
-      # 7. Subir el APK resultante
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
