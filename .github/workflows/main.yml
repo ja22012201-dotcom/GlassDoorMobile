@@ -14,21 +14,13 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. Configurar Java 17 (El estándar moderno)
-      # Ahora funcionará porque instalaremos el Buildozer nuevo que soporta Java 17.
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      # 2. Configurar Python 3.10
+      # 1. Configurar Python 3.10
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # 3. Liberar espacio en disco
+      # 2. Liberar espacio en disco
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
@@ -36,7 +28,9 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # 4. Instalar Dependencias del Sistema
+      # 3. INSTALAR DEPENDENCIAS (AQUÍ ESTÁ EL ARREGLO)
+      # Hemos añadido 'openjdk-17-jdk'. Esto instala Java y el compilador javac
+      # en la ruta del sistema (/usr/bin), donde Buildozer lo encontrará seguro.
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -46,18 +40,18 @@ jobs:
             libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
             zlib1g-dev \
             autoconf libtool pkg-config libffi-dev unzip \
-            cmake gettext
+            cmake gettext \
+            openjdk-17-jdk
 
-      # 5. INSTALAR BUILDOZER (EL CAMBIO CLAVE)
-      # Instalamos desde GIT (Master branch) en lugar de PIP.
-      # Esto descarga las herramientas Android nuevas que NO fallan con Java 17.
+      # 4. INSTALAR BUILDOZER (MASTER)
+      # Usamos la versión Master para que descargue las herramientas Android modernas
       - name: Install Buildozer Master
         run: |
           pip install --upgrade pip
           pip install git+https://github.com/kivy/buildozer.git@master
           pip install cython==0.29.33
 
-      # 6. GENERAR ARCHIVO BUILDOZER.SPEC
+      # 5. GENERAR ARCHIVO BUILDOZER.SPEC
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -69,7 +63,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Requisitos: Kivy 2.3.0 (Moderno)
+          # Requisitos: Kivy 2.3.0
           requirements = python3,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
           
           orientation = landscape
@@ -83,7 +77,7 @@ jobs:
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # Rama develop para p4a
+          # Rama develop
           p4a.branch = develop
           
           [buildozer]
@@ -91,17 +85,18 @@ jobs:
           warn_on_root = 1
           EOT
 
-      # 7. COMPILAR
-      # Limpiamos variables para que Buildozer descargue sus propias herramientas nuevas
+      # 6. COMPILAR
+      # Forzamos la variable JAVA_HOME a la ruta nativa de Ubuntu
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: ""
           ANDROID_NDK_ROOT: ""
           ANDROID_HOME: ""
+          JAVA_HOME: "/usr/lib/jvm/java-17-openjdk-amd64"
         run: |
           buildozer -v android debug
 
-      # 8. Subir el APK resultante
+      # 7. Subir el APK resultante
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
