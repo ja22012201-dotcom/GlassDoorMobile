@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    # CAMBIO CLAVE: Usamos ubuntu-22.04 porque la versión 'latest' (24) rompe la compilación
+    # Usamos ubuntu-22.04 por estabilidad
     runs-on: ubuntu-22.04
 
     steps:
@@ -21,7 +21,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # 2. Configurar Python 3.10 (Más estable que el del sistema)
+      # 2. Configurar Python 3.10
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -35,7 +35,8 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # 4. Instalar Dependencias del Sistema
+      # 4. Instalar Dependencias del Sistema (VERSIÓN LIMPIA)
+      # Hemos quitado gstreamer para evitar el error de "broken packages"
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -43,7 +44,7 @@ jobs:
             build-essential git ffmpeg \
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
             libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
-            zlib1g-dev libgstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            zlib1g-dev \
             autoconf libtool pkg-config libffi-dev unzip \
             cmake gettext
 
@@ -65,21 +66,21 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Requisitos
+          # Requisitos: Kivy 2.3.0
           requirements = python3,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
           
           orientation = landscape
           fullscreen = 1
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
-          # Configuración Android
+          # Configuración Android: Forzamos NDK 25b
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # Rama develop para arreglar fallos
+          # Rama develop
           p4a.branch = develop
           
           [buildozer]
@@ -88,8 +89,7 @@ jobs:
           EOT
 
       # 7. COMPILAR
-      # Limpiamos variables de entorno para forzar descarga de NDK 25b
-      # Añadimos "-v" (verbose) para ver el error real si falla
+      # Forzamos descarga de NDK limpiando variables de entorno
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: ""
