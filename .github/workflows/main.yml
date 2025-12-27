@@ -1,4 +1,4 @@
-name: Build Android APK (Ultimate NDK 25b)
+name: Build Android APK (Final Docker Fix)
 
 on:
   push:
@@ -14,15 +14,14 @@ jobs:
         uses: actions/checkout@v4
 
       # 1. RESET NUCLEAR
-      # Borramos todo para quitar residuos del NDK 23b que falló.
+      # Borramos todo para asegurar que Python 3.11 se descargue limpio.
       - name: Nuke Previous Builds
         run: |
           sudo rm -rf .buildozer
           sudo rm -rf bin
           echo "Limpieza completada."
 
-      # 2. CONFIGURACIÓN BUILDOZER (VOLVEMOS A NDK 25b)
-      # Es obligatorio usar la 25b, así que la configuramos aquí.
+      # 2. CONFIGURACIÓN BUILDOZER
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -34,14 +33,15 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Requisitos
-          requirements = python3,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
+          # CAMBIO 1: Usamos Python 3.11 explícitamente (Mejor compatibilidad con NDK 25)
+          # Mantenemos Kivy 2.3.0
+          requirements = python3==3.11.9,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
           
           orientation = landscape
           fullscreen = 1
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
-          # Configuración Android - OBLIGATORIO NDK 25b
+          # Configuración Android - NDK 25b
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
@@ -56,21 +56,21 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER (INYECCIÓN DE VARIABLES)
-      # Aquí está la magia:
-      # -e CFLAGS="..."  -> Inyecta la medicina directamente en el contenedor.
-      # -e CPPFLAGS="..." -> Refuerzo para el preprocesador.
-      # apt-get install wget -> Mantenemos el arreglo de wget.
+      # 3. COMPILAR CON DOCKER (INYECCIÓN INTRAVENOSA)
+      # Aquí está la clave:
+      # Los 'export' están DENTRO de las comillas del comando -c.
+      # Esto asegura que las flags estén activas EXACTAMENTE cuando buildozer corre.
       - name: Build with Docker
         run: |
           chmod 777 .
           docker run --rm -v $(pwd):/home/user/hostcwd \
-            -e CFLAGS="-Wno-error=implicit-function-declaration" \
-            -e CPPFLAGS="-Wno-error=implicit-function-declaration" \
             --entrypoint /bin/bash \
             kivy/buildozer \
             -c "sudo apt-get update && sudo apt-get install -y wget && \
                 export BUILDOZER_WARN_ON_ROOT=0 && \
+                export CFLAGS='-Wno-error=implicit-function-declaration -Wno-error=incompatible-function-pointer-types' && \
+                export CPPFLAGS='-Wno-error=implicit-function-declaration -Wno-error=incompatible-function-pointer-types' && \
+                export LDFLAGS='-L/home/user/hostcwd/.buildozer/android/platform/build-arm64-v8a/build/libs_collections/glassdoor' && \
                 buildozer android debug"
 
       # 4. Ajustar permisos del APK
