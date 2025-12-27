@@ -25,7 +25,8 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # 1. INSTALAMOS JAVA Y DEPENDENCIAS
+      # 1. INSTALAMOS JAVA Y APACHE ANT DESDE EL SISTEMA
+      # Añadimos 'ant' a la lista. Esto lo instala desde los servidores de Ubuntu (Super rápido/Fiable)
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -37,7 +38,8 @@ jobs:
             autoconf libtool pkg-config libffi-dev unzip \
             cmake gettext \
             libncurses5 libstdc++6 \
-            openjdk-17-jdk
+            openjdk-17-jdk \
+            ant
 
       # 2. ENLACES DE JAVA
       - name: Link Java Tools
@@ -54,18 +56,7 @@ jobs:
           pip install git+https://github.com/kivy/buildozer.git@master
           pip install cython==0.29.36
 
-      # 4. PRE-INSTALAR APACHE ANT (DESDE MAVEN CENTRAL - SERVIDOR RÁPIDO)
-      # Cambiamos la URL a repo.maven.apache.org que es muchísimo más estable.
-      - name: Pre-install Apache Ant
-        run: |
-          mkdir -p .buildozer/android/platform
-          cd .buildozer/android/platform
-          echo "Descargando Apache Ant desde Maven Central..."
-          wget --no-check-certificate https://repo.maven.apache.org/maven2/org/apache/ant/apache-ant/1.9.4/apache-ant-1.9.4-bin.tar.gz
-          tar -xvf apache-ant-1.9.4-bin.tar.gz
-          echo "Apache Ant instalado manualmente."
-
-      # 5. GENERAR SPEC
+      # 4. GENERAR SPEC
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -96,14 +87,19 @@ jobs:
           warn_on_root = 1
           EOT
 
-      # 6. COMPILAR
+      # 5. COMPILAR
+      # Definimos ANT_HOME para que Buildozer use el Ant del sistema y no intente descargar nada.
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: ""
           ANDROID_NDK_ROOT: ""
           ANDROID_HOME: ""
           JAVA_HOME: "/usr/lib/jvm/java-17-openjdk-amd64"
+          ANT_HOME: "/usr/share/ant"
         run: |
+          echo "Verificando Ant del sistema..."
+          ant -version
+          
           echo "Iniciando compilación..."
           python3 -m buildozer -v android debug
 
