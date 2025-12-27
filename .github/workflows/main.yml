@@ -25,7 +25,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # 1. INSTALAMOS JAVA 17
+      # 1. INSTALAMOS JAVA Y DEPENDENCIAS
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -39,26 +39,33 @@ jobs:
             libncurses5 libstdc++6 \
             openjdk-17-jdk
 
-      # 2. EL TRUCO DE LOS ENLACES (SOLUCIÓN AL ERROR FINAL)
-      # Creamos accesos directos de las herramientas de Java en /usr/bin
-      # Esto asegura que 'jarsigner' funcione siempre.
+      # 2. ENLACES DE JAVA (Para evitar error de firma)
       - name: Link Java Tools
         run: |
           sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/java /usr/bin/java
           sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/javac /usr/bin/javac
           sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/jarsigner /usr/bin/jarsigner
           sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/keytool /usr/bin/keytool
-          echo "Enlaces de Java creados correctamente."
 
-      # 3. INSTALAR BUILDOZER
+      # 3. INSTALAR BUILDOZER MASTER
       - name: Install Buildozer Master
         run: |
           pip install --upgrade pip
           pip install git+https://github.com/kivy/buildozer.git@master
-          # Actualizamos Cython a la última versión de la rama 0.29 para máxima compatibilidad
           pip install cython==0.29.36
 
-      # 4. GENERAR SPEC
+      # 4. TRUCO NUEVO: DESCARGAR APACHE ANT MANUALMENTE
+      # Esto evita el error "Network is unreachable" de Python
+      - name: Pre-install Apache Ant
+        run: |
+          mkdir -p .buildozer/android/platform
+          cd .buildozer/android/platform
+          echo "Descargando Apache Ant manualmente..."
+          wget --no-check-certificate https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+          tar -xvf apache-ant-1.9.4-bin.tar.gz
+          echo "Apache Ant instalado manualmente."
+
+      # 5. GENERAR SPEC
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -89,8 +96,7 @@ jobs:
           warn_on_root = 1
           EOT
 
-      # 5. COMPILAR
-      # Quitamos el PATH manual porque ya hicimos los enlaces simbólicos arriba.
+      # 6. COMPILAR
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: ""
@@ -98,10 +104,7 @@ jobs:
           ANDROID_HOME: ""
           JAVA_HOME: "/usr/lib/jvm/java-17-openjdk-amd64"
         run: |
-          # Verificamos que jarsigner funciona antes de empezar
-          jarsigner -version || echo "Jarsigner found"
-          
-          # Compilamos
+          echo "Iniciando compilación..."
           python3 -m buildozer -v android debug
 
       - name: Upload APK
