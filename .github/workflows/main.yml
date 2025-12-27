@@ -1,4 +1,4 @@
-name: Build Android APK (Stable Fix)
+name: Build Android APK (Fixed Host Compiler)
 
 on:
   push:
@@ -14,14 +14,14 @@ jobs:
         uses: actions/checkout@v4
 
       # 1. RESET NUCLEAR
-      # Borramos todo para quitar la versión corrupta de Python 3.14
+      # Limpiamos todo para que el compilador de PC se recupere del error anterior.
       - name: Nuke Previous Builds
         run: |
           sudo rm -rf .buildozer
           sudo rm -rf bin
           echo "Limpieza completada."
 
-      # 2. CONFIGURACIÓN BUILDOZER (ESTABLE)
+      # 2. CONFIGURACIÓN BUILDOZER
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -33,9 +33,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # CAMBIO 1: Volvemos a 'python3' genérico.
-          # Esto instalará la versión más estable (probablemente 3.9 o 3.10)
-          # Kivy 2.3.0 funciona bien aquí.
+          # Requisitos Estándar (Kivy 2.3.0)
           requirements = python3,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
           
           orientation = landscape
@@ -49,16 +47,16 @@ jobs:
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # CAMBIO 2: ¡BORRAMOS LA LÍNEA 'p4a.branch = develop'!
-          # Al quitarla, usamos la versión estable de p4a que no intenta descargar Python 3.14.
+          # Rama estable (Borramos develop para evitar Python 3.14)
           
           [buildozer]
           log_level = 2
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER (CON MEDICINA CFLAGS)
-      # Mantenemos las flags CFLAGS porque el NDK 25b las necesita para compilar Python estable.
+      # 3. COMPILAR CON DOCKER (CORREGIDO)
+      # - Mantenemos CFLAGS y CPPFLAGS (Necesarios para NDK 25)
+      # - ¡HEMOS BORRADO LDFLAGS! (Esa era la línea que rompía el compilador de PC)
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -69,7 +67,6 @@ jobs:
                 export BUILDOZER_WARN_ON_ROOT=0 && \
                 export CFLAGS='-Wno-error=implicit-function-declaration -Wno-error=incompatible-function-pointer-types' && \
                 export CPPFLAGS='-Wno-error=implicit-function-declaration -Wno-error=incompatible-function-pointer-types' && \
-                export LDFLAGS='-L/home/user/hostcwd/.buildozer/android/platform/build-arm64-v8a/build/libs_collections/glassdoor' && \
                 buildozer android debug"
 
       # 4. Ajustar permisos del APK
