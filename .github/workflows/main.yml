@@ -25,8 +25,9 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # 1. INSTALAMOS JAVA Y LIBRERÍAS DE SOPORTE
-      # Añadimos libncurses5 y libstdc++6 que a veces faltan para firmar el APK
+      # 1. INSTALAR JAVA Y DEPENDENCIAS
+      # Instalamos openjdk-17-jdk en el sistema base.
+      # Esto pone 'javac' en /usr/bin/javac automáticamente.
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -40,14 +41,14 @@ jobs:
             libncurses5 libstdc++6 \
             openjdk-17-jdk
 
-      # 2. INSTALAMOS BUILDOZER MASTER
+      # 2. INSTALAR BUILDOZER
       - name: Install Buildozer Master
         run: |
           pip install --upgrade pip
           pip install git+https://github.com/kivy/buildozer.git@master
           pip install cython==0.29.33
 
-      # 3. GENERAMOS BUILDOZER.SPEC
+      # 3. GENERAR SPEC
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -78,20 +79,27 @@ jobs:
           warn_on_root = 1
           EOT
 
-      # 4. COMPILAR (EL ARREGLO ESTÁ AQUÍ)
-      # Añadimos Java explícitamente al PATH para que no se pierda al final.
+      # 4. COMPILAR (EL ARREGLO)
+      # 1. Quitamos la línea PATH que rompió el paso anterior.
+      # 2. Usamos 'python3 -m buildozer' para asegurar que lo encuentra.
+      # 3. Añadimos la ruta de Java al PATH de forma segura con 'export'.
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: ""
           ANDROID_NDK_ROOT: ""
           ANDROID_HOME: ""
           JAVA_HOME: "/usr/lib/jvm/java-17-openjdk-amd64"
-          # ESTO ES LO NUEVO: Forzamos a que encuentre los binarios de Java
-          PATH: "/usr/lib/jvm/java-17-openjdk-amd64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         run: |
-          # Verificamos que Java existe antes de empezar
+          # Añadimos Java al path sin borrar el resto
+          export PATH=$PATH:$JAVA_HOME/bin
+          
+          # Verificamos
+          echo "Verificando Java..."
           javac -version
-          buildozer -v android debug
+          
+          # Ejecutamos Buildozer a través de Python (A prueba de fallos)
+          echo "Iniciando compilación..."
+          python3 -m buildozer -v android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
