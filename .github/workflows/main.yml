@@ -39,7 +39,7 @@ jobs:
             libncurses5 libstdc++6 \
             openjdk-17-jdk
 
-      # 2. ENLACES DE JAVA (Para evitar error de firma)
+      # 2. ENLACES DE JAVA
       - name: Link Java Tools
         run: |
           sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/java /usr/bin/java
@@ -54,14 +54,14 @@ jobs:
           pip install git+https://github.com/kivy/buildozer.git@master
           pip install cython==0.29.36
 
-      # 4. TRUCO NUEVO: DESCARGAR APACHE ANT MANUALMENTE
-      # Esto evita el error "Network is unreachable" de Python
+      # 4. PRE-INSTALAR APACHE ANT (DESDE MAVEN CENTRAL - SERVIDOR RÁPIDO)
+      # Cambiamos la URL a repo.maven.apache.org que es muchísimo más estable.
       - name: Pre-install Apache Ant
         run: |
           mkdir -p .buildozer/android/platform
           cd .buildozer/android/platform
-          echo "Descargando Apache Ant manualmente..."
-          wget --no-check-certificate https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz
+          echo "Descargando Apache Ant desde Maven Central..."
+          wget --no-check-certificate https://repo.maven.apache.org/maven2/org/apache/ant/apache-ant/1.9.4/apache-ant-1.9.4-bin.tar.gz
           tar -xvf apache-ant-1.9.4-bin.tar.gz
           echo "Apache Ant instalado manualmente."
 
