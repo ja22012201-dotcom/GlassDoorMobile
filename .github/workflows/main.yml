@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK (Docker)
 
 on:
   push:
@@ -7,71 +7,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
+      # 1. Bajamos tu código
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Free Disk Space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-
-      # 1. INSTALAMOS JAVA Y DEPENDENCIAS
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential git ffmpeg \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
-            zlib1g-dev \
-            autoconf libtool pkg-config libffi-dev unzip \
-            cmake gettext \
-            libncurses5 libstdc++6 \
-            openjdk-17-jdk
-
-      # 2. ENLACES DE JAVA (Para la firma del APK)
-      - name: Link Java Tools
-        run: |
-          sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/java /usr/bin/java
-          sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/javac /usr/bin/javac
-          sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/jarsigner /usr/bin/jarsigner
-          sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/keytool /usr/bin/keytool
-
-      # 3. INSTALAR BUILDOZER MASTER
-      - name: Install Buildozer Master
-        run: |
-          pip install --upgrade pip
-          pip install git+https://github.com/kivy/buildozer.git@master
-          pip install cython==0.29.36
-
-      # 4. EL INJERTO (LA SOLUCIÓN CLAVE)
-      # Descargamos Ant desde Maven (Rápido) y lo ponemos DONDE BUILDOZER LO BUSCA.
-      - name: Manually Install Apache Ant for Buildozer
-        run: |
-          # Crear la carpeta exacta donde Buildozer busca Ant
-          mkdir -p ~/.buildozer/android/platform/apache-ant-1.9.4
-          
-          # Descargar desde Maven Central (Servidor estable)
-          echo "Descargando Ant..."
-          wget --no-check-certificate https://repo.maven.apache.org/maven2/org/apache/ant/apache-ant/1.9.4/apache-ant-1.9.4-bin.tar.gz
-          
-          # Descomprimir DENTRO de la carpeta (strip-components quita la carpeta raíz del zip)
-          echo "Descomprimiendo..."
-          tar -xf apache-ant-1.9.4-bin.tar.gz --strip-components=1 -C ~/.buildozer/android/platform/apache-ant-1.9.4
-          
-          echo "Ant inyectado correctamente."
-
-      # 5. GENERAR SPEC
+      # 2. Generamos el buildozer.spec (Igual que siempre)
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -83,18 +26,21 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
+          # Requisitos
           requirements = python3,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
           
           orientation = landscape
           fullscreen = 1
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
+          # Configuración Android
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
+          # Rama develop
           p4a.branch = develop
           
           [buildozer]
@@ -102,18 +48,23 @@ jobs:
           warn_on_root = 1
           EOT
 
-      # 6. COMPILAR
-      # Quitamos ANT_HOME para que use el que acabamos de inyectar en .buildozer
-      - name: Build APK
-        env:
-          ANDROID_SDK_ROOT: ""
-          ANDROID_NDK_ROOT: ""
-          ANDROID_HOME: ""
-          JAVA_HOME: "/usr/lib/jvm/java-17-openjdk-amd64"
+      # 3. EL GRAN CAMBIO: USAMOS DOCKER
+      # No instalamos Java ni Ant. Usamos la imagen oficial de Kivy que ya lo tiene todo.
+      - name: Build with Docker
         run: |
-          echo "Iniciando compilación..."
-          python3 -m buildozer -v android debug
+          # Damos permisos a la carpeta para que Docker pueda escribir el APK
+          chmod 777 .
+          
+          # Ejecutamos el contenedor oficial
+          # -v $(pwd):/home/user/hostcwd  <-- Montamos tu código dentro del contenedor
+          docker run --rm -v $(pwd):/home/user/hostcwd kivy/buildozer android debug
 
+      # 4. Ajustar permisos del APK (Docker lo crea como 'root' y GitHub no puede subirlo si no lo cambiamos)
+      - name: Fix APK Permissions
+        run: |
+          sudo chown -R $USER:$GROUP bin/
+
+      # 5. Subir el APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
