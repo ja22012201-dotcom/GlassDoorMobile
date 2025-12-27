@@ -25,8 +25,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # 1. INSTALAMOS JAVA Y APACHE ANT DESDE EL SISTEMA
-      # Añadimos 'ant' a la lista. Esto lo instala desde los servidores de Ubuntu (Super rápido/Fiable)
+      # 1. INSTALAMOS JAVA Y DEPENDENCIAS
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -38,10 +37,9 @@ jobs:
             autoconf libtool pkg-config libffi-dev unzip \
             cmake gettext \
             libncurses5 libstdc++6 \
-            openjdk-17-jdk \
-            ant
+            openjdk-17-jdk
 
-      # 2. ENLACES DE JAVA
+      # 2. ENLACES DE JAVA (Para la firma del APK)
       - name: Link Java Tools
         run: |
           sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/java /usr/bin/java
@@ -56,7 +54,24 @@ jobs:
           pip install git+https://github.com/kivy/buildozer.git@master
           pip install cython==0.29.36
 
-      # 4. GENERAR SPEC
+      # 4. EL INJERTO (LA SOLUCIÓN CLAVE)
+      # Descargamos Ant desde Maven (Rápido) y lo ponemos DONDE BUILDOZER LO BUSCA.
+      - name: Manually Install Apache Ant for Buildozer
+        run: |
+          # Crear la carpeta exacta donde Buildozer busca Ant
+          mkdir -p ~/.buildozer/android/platform/apache-ant-1.9.4
+          
+          # Descargar desde Maven Central (Servidor estable)
+          echo "Descargando Ant..."
+          wget --no-check-certificate https://repo.maven.apache.org/maven2/org/apache/ant/apache-ant/1.9.4/apache-ant-1.9.4-bin.tar.gz
+          
+          # Descomprimir DENTRO de la carpeta (strip-components quita la carpeta raíz del zip)
+          echo "Descomprimiendo..."
+          tar -xf apache-ant-1.9.4-bin.tar.gz --strip-components=1 -C ~/.buildozer/android/platform/apache-ant-1.9.4
+          
+          echo "Ant inyectado correctamente."
+
+      # 5. GENERAR SPEC
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -87,19 +102,15 @@ jobs:
           warn_on_root = 1
           EOT
 
-      # 5. COMPILAR
-      # Definimos ANT_HOME para que Buildozer use el Ant del sistema y no intente descargar nada.
+      # 6. COMPILAR
+      # Quitamos ANT_HOME para que use el que acabamos de inyectar en .buildozer
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: ""
           ANDROID_NDK_ROOT: ""
           ANDROID_HOME: ""
           JAVA_HOME: "/usr/lib/jvm/java-17-openjdk-amd64"
-          ANT_HOME: "/usr/share/ant"
         run: |
-          echo "Verificando Ant del sistema..."
-          ant -version
-          
           echo "Iniciando compilación..."
           python3 -m buildozer -v android debug
 
