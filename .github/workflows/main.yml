@@ -1,4 +1,4 @@
-name: Build Android APK (NDK 23b Fix)
+name: Build Android APK (Nuclear Reset)
 
 on:
   push:
@@ -13,8 +13,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. Generamos el buildozer.spec
-      # CAMBIO CLAVE: Usamos NDK 23b en lugar de 25b.
+      # 1. OPCIÓN NUCLEAR: Borramos cualquier rastro anterior
+      # Esto evita el error "FileNotFound" y asegura que se descargue el NDK 23b limpio.
+      - name: Nuke Previous Builds
+        run: |
+          sudo rm -rf .buildozer
+          sudo rm -rf bin
+          echo "Carpeta .buildozer eliminada. Empezamos de cero absoluto."
+
+      # 2. Generamos el buildozer.spec (Configuración NDK 23b)
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -33,11 +40,9 @@ jobs:
           fullscreen = 1
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
-          # Configuración Android
+          # Configuración Android - NDK 23b (El Salvador)
           android.api = 33
           android.minapi = 21
-          
-          # CAMBIO CLAVE: NDK 23b es más permisivo con errores de C
           android.ndk = 23b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
@@ -50,9 +55,9 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 2. COMPILAR CON DOCKER
-      # Hemos añadido 'buildozer android clean' antes del debug.
-      # Esto es VITAL para que borre los archivos corruptos del NDK 25b anterior.
+      # 3. COMPILAR CON DOCKER
+      # Quitamos 'buildozer android clean' porque ya borramos la carpeta manualmente en el paso 1.
+      # Mantenemos la instalación de wget que es necesaria.
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -61,15 +66,14 @@ jobs:
             kivy/buildozer \
             -c "sudo apt-get update && sudo apt-get install -y wget && \
                 export BUILDOZER_WARN_ON_ROOT=0 && \
-                buildozer android clean && \
                 buildozer android debug"
 
-      # 3. Ajustar permisos del APK
+      # 4. Ajustar permisos del APK
       - name: Fix APK Permissions
         run: |
           sudo chown -R $USER:$GROUP bin/
 
-      # 4. Subir el APK
+      # 5. Subir el APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
