@@ -1,4 +1,4 @@
-name: Build Android APK (ReportLab Pointer Fix)
+name: Build Android APK (Final ReportLab Fix)
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Requisitos (Mantenemos reportlab, pero lo vamos a parchear con flags)
+          # Requisitos (Incluye ReportLab)
           requirements = python3,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
           
           orientation = landscape
@@ -54,9 +54,11 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER (CON LA NUEVA MEDICINA)
-      # Hemos añadido '-Wno-pointer-sign' al final de la lista de CFLAGS.
-      # Esta es la específica para el error que te acaba de salir.
+      # 3. COMPILAR CON DOCKER (SOLUCIÓN BLINDADA)
+      # 1. Instala wget.
+      # 2. Instala Cython correcto (0.29.37).
+      # 3. ANT: Lo descargamos a /opt/ant y definimos ANT_HOME y PATH para que Buildozer LO ENCUENTRE y no intente descargarlo.
+      # 4. FLAGS: Incluimos '-Wno-pointer-sign' para arreglar el error de ReportLab.
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -65,13 +67,24 @@ jobs:
             kivy/buildozer \
             -c "sudo apt-get update && sudo apt-get install -y wget && \
                 pip install cython==0.29.37 && \
-                mkdir -p .buildozer/android/platform/apache-ant-1.9.4 && \
-                echo 'Descargando Ant 1.10 (Camuflado)...' && \
+                \
+                echo '>>> INSTALANDO ANT MANUALMENTE EN EL SISTEMA...' && \
+                mkdir -p /opt/ant && \
                 wget --no-check-certificate https://dlcdn.apache.org//ant/binaries/apache-ant-1.10.15-bin.tar.gz -O ant.tar.gz && \
-                tar -xf ant.tar.gz --strip-components=1 -C .buildozer/android/platform/apache-ant-1.9.4 && \
+                tar -xf ant.tar.gz --strip-components=1 -C /opt/ant && \
+                export ANT_HOME=/opt/ant && \
+                export PATH=\$PATH:/opt/ant/bin && \
+                echo '>>> ANT INSTALADO EN: ' && which ant && \
+                \
+                echo '>>> PREPARANDO ENGAÑO PARA BUILDOZER...' && \
+                mkdir -p .buildozer/android/platform && \
+                ln -sf /opt/ant .buildozer/android/platform/apache-ant-1.9.4 && \
+                \
                 export BUILDOZER_WARN_ON_ROOT=0 && \
                 export USE_CCACHE=0 && \
+                echo '>>> INYECTANDO MEDICINA PARA REPORTLAB...' && \
                 export CFLAGS=\"\$CFLAGS -Wno-error -Wno-implicit-function-declaration -Wno-deprecated-declarations -Wno-error=deprecated-declarations -Wno-incompatible-pointer-types-discards-qualifiers -Wno-pointer-sign\" && \
+                \
                 buildozer android debug"
 
       # 4. Ajustar permisos del APK
