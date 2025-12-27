@@ -1,4 +1,4 @@
-name: Build Android APK (Docker)
+name: Build Android APK (Docker Fix)
 
 on:
   push:
@@ -10,11 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Bajamos tu código
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. Generamos el buildozer.spec (Igual que siempre)
+      # 1. Generamos el buildozer.spec
+      # NOTA: Mantenemos la configuración que sabemos que es correcta para Kivy 2.3.0
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -40,7 +40,7 @@ jobs:
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # Rama develop
+          # Rama develop (Necesaria para Kivy 2.3.0)
           p4a.branch = develop
           
           [buildozer]
@@ -48,23 +48,25 @@ jobs:
           warn_on_root = 1
           EOT
 
-      # 3. EL GRAN CAMBIO: USAMOS DOCKER
-      # No instalamos Java ni Ant. Usamos la imagen oficial de Kivy que ya lo tiene todo.
+      # 2. EL ARREGLO DEL "WGET"
+      # Usamos Docker, pero cambiamos el comando de inicio.
+      # 1. sudo apt-get update -> Actualiza la lista de la caja
+      # 2. sudo apt-get install -y wget -> Instala la herramienta que faltaba
+      # 3. buildozer android debug -> Ejecuta la compilación
       - name: Build with Docker
         run: |
-          # Damos permisos a la carpeta para que Docker pueda escribir el APK
           chmod 777 .
-          
-          # Ejecutamos el contenedor oficial
-          # -v $(pwd):/home/user/hostcwd  <-- Montamos tu código dentro del contenedor
-          docker run --rm -v $(pwd):/home/user/hostcwd kivy/buildozer android debug
+          docker run --rm -v $(pwd):/home/user/hostcwd \
+            --entrypoint /bin/bash \
+            kivy/buildozer \
+            -c "sudo apt-get update && sudo apt-get install -y wget && buildozer android debug"
 
-      # 4. Ajustar permisos del APK (Docker lo crea como 'root' y GitHub no puede subirlo si no lo cambiamos)
+      # 3. Ajustar permisos del APK
       - name: Fix APK Permissions
         run: |
           sudo chown -R $USER:$GROUP bin/
 
-      # 5. Subir el APK
+      # 4. Subir el APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
