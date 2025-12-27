@@ -1,4 +1,4 @@
-name: Build Android APK (Kivy 2.2.1 Stability Fix)
+name: Build Android APK (KivyMD 1.2.0 Fix)
 
 on:
   push:
@@ -32,10 +32,10 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # CAMBIO CLAVE: Kivy 2.2.1
-          # Esta versión es estable con Cython 0.29.37 (la única que Buildozer permite).
-          # Kivy 2.3.0 requiere Cython 3.0 y por eso crasheaba.
-          requirements = python3,kivy==2.2.1,kivymd==1.1.1,pillow,reportlab>=4.0.0,android,openssl,freetype
+          # CAMBIO CLAVE: kivymd==1.2.0
+          # KivyMD 1.1.1 es incompatible con Kivy 2.2.1 y causa el fallo gráfico (SIGSEGV).
+          # KivyMD 1.2.0 arregla esto.
+          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
           orientation = landscape
           fullscreen = 1
@@ -48,7 +48,7 @@ jobs:
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # Color de carga (ayuda a la estabilidad gráfica al inicio)
+          # Color de carga (Blanco para evitar glitches gráficos)
           android.presplash_color = #FFFFFF
           
           # Rama MASTER
@@ -60,7 +60,7 @@ jobs:
           EOT
 
       # 3. COMPILAR CON DOCKER
-      # Mantenemos la estrategia ganadora de Ant y Cython 0.29.37.
+      # Usamos Cython 0.29.33 -> Es la versión "Gold Standard" para Kivy 2.2.1.
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -68,7 +68,7 @@ jobs:
             --entrypoint /bin/bash \
             kivy/buildozer \
             -c "sudo apt-get update && sudo apt-get install -y wget && \
-                pip install cython==0.29.37 && \
+                pip install cython==0.29.33 && \
                 \
                 echo '>>> ESTRATEGIA ANT: INYECCIÓN MANUAL...' && \
                 mkdir -p .buildozer/android/platform/apache-ant-1.9.4 && \
