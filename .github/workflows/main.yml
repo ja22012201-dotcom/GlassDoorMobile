@@ -1,4 +1,4 @@
-name: Build Android APK (Deprecation Fix)
+name: Build Android APK (ReportLab Fix)
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Requisitos Estándar
+          # Requisitos
           requirements = python3,kivy==2.3.0,kivymd==1.1.1,pillow,reportlab,android,openssl,freetype
           
           orientation = landscape
@@ -54,9 +54,9 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER (CON MEDICINA ANTI-DEPRECATED)
-      # Mantenemos todo lo que funciona (Ant camuflado, Cython fixed)
-      # Y AÑADIMOS la flag '-Wno-deprecated-declarations' a CFLAGS.
+      # 3. COMPILAR CON DOCKER (CON COCTEL MOLOTOV DE FLAGS)
+      # Hemos añadido '-Wno-incompatible-pointer-types-discards-qualifiers' al final de CFLAGS.
+      # Esto debería callar al compilador cuando procese ReportLab.
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -71,7 +71,7 @@ jobs:
                 tar -xf ant.tar.gz --strip-components=1 -C .buildozer/android/platform/apache-ant-1.9.4 && \
                 export BUILDOZER_WARN_ON_ROOT=0 && \
                 export USE_CCACHE=0 && \
-                export CFLAGS=\"\$CFLAGS -Wno-error -Wno-implicit-function-declaration -Wno-deprecated-declarations -Wno-error=deprecated-declarations\" && \
+                export CFLAGS=\"\$CFLAGS -Wno-error -Wno-implicit-function-declaration -Wno-deprecated-declarations -Wno-error=deprecated-declarations -Wno-incompatible-pointer-types-discards-qualifiers\" && \
                 buildozer android debug"
 
       # 4. Ajustar permisos del APK
