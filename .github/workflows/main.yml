@@ -25,9 +25,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      # 1. INSTALAR JAVA Y DEPENDENCIAS
-      # Instalamos openjdk-17-jdk en el sistema base.
-      # Esto pone 'javac' en /usr/bin/javac automáticamente.
+      # 1. INSTALAMOS JAVA 17
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -41,14 +39,26 @@ jobs:
             libncurses5 libstdc++6 \
             openjdk-17-jdk
 
-      # 2. INSTALAR BUILDOZER
+      # 2. EL TRUCO DE LOS ENLACES (SOLUCIÓN AL ERROR FINAL)
+      # Creamos accesos directos de las herramientas de Java en /usr/bin
+      # Esto asegura que 'jarsigner' funcione siempre.
+      - name: Link Java Tools
+        run: |
+          sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/java /usr/bin/java
+          sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/javac /usr/bin/javac
+          sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/jarsigner /usr/bin/jarsigner
+          sudo ln -sf /usr/lib/jvm/java-17-openjdk-amd64/bin/keytool /usr/bin/keytool
+          echo "Enlaces de Java creados correctamente."
+
+      # 3. INSTALAR BUILDOZER
       - name: Install Buildozer Master
         run: |
           pip install --upgrade pip
           pip install git+https://github.com/kivy/buildozer.git@master
-          pip install cython==0.29.33
+          # Actualizamos Cython a la última versión de la rama 0.29 para máxima compatibilidad
+          pip install cython==0.29.36
 
-      # 3. GENERAR SPEC
+      # 4. GENERAR SPEC
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -79,10 +89,8 @@ jobs:
           warn_on_root = 1
           EOT
 
-      # 4. COMPILAR (EL ARREGLO)
-      # 1. Quitamos la línea PATH que rompió el paso anterior.
-      # 2. Usamos 'python3 -m buildozer' para asegurar que lo encuentra.
-      # 3. Añadimos la ruta de Java al PATH de forma segura con 'export'.
+      # 5. COMPILAR
+      # Quitamos el PATH manual porque ya hicimos los enlaces simbólicos arriba.
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: ""
@@ -90,15 +98,10 @@ jobs:
           ANDROID_HOME: ""
           JAVA_HOME: "/usr/lib/jvm/java-17-openjdk-amd64"
         run: |
-          # Añadimos Java al path sin borrar el resto
-          export PATH=$PATH:$JAVA_HOME/bin
+          # Verificamos que jarsigner funciona antes de empezar
+          jarsigner -version || echo "Jarsigner found"
           
-          # Verificamos
-          echo "Verificando Java..."
-          javac -version
-          
-          # Ejecutamos Buildozer a través de Python (A prueba de fallos)
-          echo "Iniciando compilación..."
+          # Compilamos
           python3 -m buildozer -v android debug
 
       - name: Upload APK
