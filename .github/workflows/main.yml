@@ -1,4 +1,4 @@
-name: Build Android APK (Trojan Horse Fix)
+name: Build Android APK (Deprecation Fix)
 
 on:
   push:
@@ -54,11 +54,9 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER (ESTRATEGIA CABALLO DE TROYA)
-      # 1. Instala wget.
-      # 2. Instala Cython 0.29.37 (CRÍTICO: La versión 3.x rompe todo).
-      # 3. EL ENGAÑO: Crea la carpeta 'apache-ant-1.9.4' pero descarga la versión 1.10.15 (Moderna y disponible).
-      # 4. Inyecta las flags para evitar errores de compilación.
+      # 3. COMPILAR CON DOCKER (CON MEDICINA ANTI-DEPRECATED)
+      # Mantenemos todo lo que funciona (Ant camuflado, Cython fixed)
+      # Y AÑADIMOS la flag '-Wno-deprecated-declarations' a CFLAGS.
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -73,7 +71,7 @@ jobs:
                 tar -xf ant.tar.gz --strip-components=1 -C .buildozer/android/platform/apache-ant-1.9.4 && \
                 export BUILDOZER_WARN_ON_ROOT=0 && \
                 export USE_CCACHE=0 && \
-                export CFLAGS=\"\$CFLAGS -Wno-error -Wno-implicit-function-declaration\" && \
+                export CFLAGS=\"\$CFLAGS -Wno-error -Wno-implicit-function-declaration -Wno-deprecated-declarations -Wno-error=deprecated-declarations\" && \
                 buildozer android debug"
 
       # 4. Ajustar permisos del APK
