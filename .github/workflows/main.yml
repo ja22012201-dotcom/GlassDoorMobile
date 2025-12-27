@@ -1,4 +1,4 @@
-name: Build Android APK (Docker + CFLAGS Fix)
+name: Build Android APK (NDK 23b Fix)
 
 on:
   push:
@@ -14,6 +14,7 @@ jobs:
         uses: actions/checkout@v4
 
       # 1. Generamos el buildozer.spec
+      # CAMBIO CLAVE: Usamos NDK 23b en lugar de 25b.
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -35,7 +36,9 @@ jobs:
           # Configuración Android
           android.api = 33
           android.minapi = 21
-          android.ndk = 25b
+          
+          # CAMBIO CLAVE: NDK 23b es más permisivo con errores de C
+          android.ndk = 23b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
@@ -47,9 +50,9 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 2. COMPILAR CON DOCKER + PARCHE DE COMPILADOR
-      # Añadimos: export CFLAGS='-Wno-error=implicit-function-declaration'
-      # Esto obliga al NDK 25 a perdonar el error de código C de Python.
+      # 2. COMPILAR CON DOCKER
+      # Hemos añadido 'buildozer android clean' antes del debug.
+      # Esto es VITAL para que borre los archivos corruptos del NDK 25b anterior.
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -58,7 +61,7 @@ jobs:
             kivy/buildozer \
             -c "sudo apt-get update && sudo apt-get install -y wget && \
                 export BUILDOZER_WARN_ON_ROOT=0 && \
-                export CFLAGS='-Wno-error=implicit-function-declaration' && \
+                buildozer android clean && \
                 buildozer android debug"
 
       # 3. Ajustar permisos del APK
