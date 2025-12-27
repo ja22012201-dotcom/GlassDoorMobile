@@ -1,4 +1,4 @@
-name: Build Android APK (Docker Final)
+name: Build Android APK (Docker + CFLAGS Fix)
 
 on:
   push:
@@ -14,7 +14,6 @@ jobs:
         uses: actions/checkout@v4
 
       # 1. Generamos el buildozer.spec
-      # CAMBIO CLAVE: Ponemos 'warn_on_root = 0' al final.
       - name: Create Buildozer Spec
         run: |
           cat <<EOT >> buildozer.spec
@@ -45,21 +44,22 @@ jobs:
           
           [buildozer]
           log_level = 2
-          # AQUÍ ESTABA EL FALLO ANTERIOR. 
-          # Lo cambiamos a 0 para que no pregunte nada si somos root.
           warn_on_root = 0
           EOT
 
-      # 2. COMPILAR CON DOCKER
-      # Mantenemos la instalación de wget que funcionó.
-      # Añadimos 'export BUILDOZER_WARN_ON_ROOT=0' para asegurar doblemente que no pregunte.
+      # 2. COMPILAR CON DOCKER + PARCHE DE COMPILADOR
+      # Añadimos: export CFLAGS='-Wno-error=implicit-function-declaration'
+      # Esto obliga al NDK 25 a perdonar el error de código C de Python.
       - name: Build with Docker
         run: |
           chmod 777 .
           docker run --rm -v $(pwd):/home/user/hostcwd \
             --entrypoint /bin/bash \
             kivy/buildozer \
-            -c "sudo apt-get update && sudo apt-get install -y wget && export BUILDOZER_WARN_ON_ROOT=0 && buildozer android debug"
+            -c "sudo apt-get update && sudo apt-get install -y wget && \
+                export BUILDOZER_WARN_ON_ROOT=0 && \
+                export CFLAGS='-Wno-error=implicit-function-declaration' && \
+                buildozer android debug"
 
       # 3. Ajustar permisos del APK
       - name: Fix APK Permissions
