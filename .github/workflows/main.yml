@@ -1,4 +1,4 @@
-name: Build Android APK (Auto-Rotation)
+name: Build Android APK (Auto-Rotation Fix)
 
 on:
   push:
@@ -35,13 +35,12 @@ jobs:
           # Requisitos (Kivy 2.2.1 + KivyMD 1.2.0 para estabilidad)
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # --- CAMBIO CLAVE: SENSOR ---
-          # 'sensor' permite que la app gire automáticamente con el móvil.
-          orientation = sensor
+          # --- CAMBIO CORREGIDO: ALL ---
+          # 'all' permite rotación total (vertical y horizontal) usando el giroscopio.
+          orientation = all
           
           fullscreen = 0 
-          # Pongo fullscreen = 0 para que se vea la barra de batería/hora, 
-          # que es más cómodo en vertical.
+          # Barra de estado visible (mejor para uso vertical)
           
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
