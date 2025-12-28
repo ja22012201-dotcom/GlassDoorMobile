@@ -1,4 +1,4 @@
-name: Build Android APK (Force Upgrade)
+name: Build Android APK (Nuclear Fix)
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. RESET NUCLEAR
+      # 1. RESET NUCLEAR DE ARCHIVOS
       - name: Nuke Previous Builds
         run: |
           sudo rm -rf .buildozer
@@ -35,24 +35,19 @@ jobs:
           # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # --- ROTACIÓN AUTOMÁTICA ---
-          # Ahora funcionará porque forzamos la actualización de Buildozer abajo
+          # --- AHORA SÍ FUNCIONARÁ ---
           orientation = sensor
           
           fullscreen = 0 
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
-          # Configuración Android - NDK 25b
+          # Configuración Android
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
-          
-          # Color de carga
           android.presplash_color = #FFFFFF
-          
-          # Rama MASTER
           p4a.branch = master
           
           [buildozer]
@@ -60,25 +55,20 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER (MODO AGRESIVO)
+      # 3. COMPILAR CON DOCKER (ELIMINANDO AL ZOMBI)
       - name: Build with Docker
         run: |
           chmod 777 .
           docker run --rm -v $(pwd):/home/user/hostcwd \
             --entrypoint /bin/bash \
             kivy/buildozer \
-            -c "echo '>>> ACTUALIZANDO SISTEMA...' && \
-                sudo apt-get update -q && \
-                sudo apt-get install -y libffi-dev libssl-dev && \
+            -c "echo '>>> ELIMINANDO VERSIÓN VIEJA...' && \
+                sudo rm -f /usr/local/bin/buildozer && \
                 \
-                echo '>>> FORZANDO ACTUALIZACIÓN BUILDOZER...' && \
+                echo '>>> INSTALANDO VERSIÓN NUEVA...' && \
                 pip install --upgrade pip && \
-                pip install --upgrade buildozer && \
+                pip install buildozer && \
                 pip install cython==0.29.33 && \
-                \
-                echo '>>> VERIFICANDO VERSIÓN...' && \
-                export PATH=\$HOME/.local/bin:\$PATH && \
-                buildozer --version && \
                 \
                 echo '>>> INYECTANDO ANT...' && \
                 mkdir -p .buildozer/android/platform/apache-ant-1.9.4 && \
@@ -88,7 +78,7 @@ jobs:
                 echo '>>> INICIANDO COMPILACIÓN...' && \
                 export BUILDOZER_WARN_ON_ROOT=0 && \
                 export USE_CCACHE=0 && \
-                buildozer android debug"
+                python3 -m buildozer android debug"
 
       # 4. Ajustar permisos del APK
       - name: Fix APK Permissions
