@@ -18,11 +18,20 @@ from kivy.lang import Builder
 from kivy.properties import ObjectProperty, DictProperty, ListProperty, StringProperty, NumericProperty, BooleanProperty
 from kivy.clock import Clock
 from kivy.uix.screenmanager import ScreenManager
-from kivy.metrics import dp
+from kivy.metrics import dp, Metrics # Importado Metrics
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Line, Rectangle, Ellipse
 from kivy.utils import get_color_from_hex, platform
 from kivy.core.window import Window
+from kivy.uix.scrollview import ScrollView # Importado ScrollView
+
+# --- CONFIGURACIÓN DE PANTALLA Y TECLADO ---
+# 1. Ajuste de teclado para que no tape los campos (redimensiona la ventana)
+Window.softinput_mode = 'resize'
+
+# 2. "Zoom Out": Simulamos una pantalla más grande reduciendo la densidad.
+# Valores < 1.0 hacen los widgets más pequeños. 0.85 es un buen equilibrio.
+Metrics.density = 0.85
 
 # Importar lógica
 import fase1_logic
@@ -374,119 +383,121 @@ KV_DESIGN = '''
                         on_release: app.exit_app()
                         size_hint_x: 1
 
+# --- REDISEÑO DE HERRAJES POPUP (VERTICAL Y ADAPTATIVO) ---
 <HerrajesPopup>:
     orientation: 'vertical'
     spacing: dp(15)
-    padding: dp(5)
-    size_hint_y: None
-    height: dp(600)
+    padding: dp(10)
+    adaptive_height: True
+    # Eliminamos el height fijo para que se adapte al contenido dentro del ScrollView
 
-    MDBoxLayout:
-        orientation: 'horizontal'
-        spacing: dp(15)
-        size_hint_y: 0.60
+    # 1. SELECCIÓN DE TIPO (Arriba)
+    MDCard:
+        orientation: 'vertical'
+        padding: dp(0)
+        size_hint_y: None
+        height: dp(160)
+        elevation: 2
+        radius: [12, 12, 12, 12]
+        
+        MDBoxLayout:
+            adaptive_height: True
+            padding: dp(10)
+            md_bg_color: app.theme_cls.primary_light
+            radius: [12, 12, 0, 0]
+            MDLabel:
+                text: "1. Seleccione Tipo"
+                font_style: "Subtitle2"
+                theme_text_color: "Custom"
+                text_color: 0,0,0,1
+                halign: "center"
+        
+        MDScrollView:
+            MDList:
+                id: herraje_type_list
 
-        MDCard:
+    # 2. CONFIGURACIÓN (En medio, crece según el contenido)
+    MDCard:
+        orientation: 'vertical'
+        padding: dp(0)
+        adaptive_height: True
+        elevation: 2
+        radius: [12, 12, 12, 12]
+        
+        MDBoxLayout:
+            adaptive_height: True
+            padding: dp(10)
+            md_bg_color: app.theme_cls.primary_light
+            radius: [12, 12, 0, 0]
+            MDLabel:
+                text: "2. Configuración"
+                font_style: "Subtitle2"
+                theme_text_color: "Custom"
+                text_color: 0,0,0,1
+                halign: "center"
+
+        # Contenedor para los campos dinámicos
+        MDBoxLayout:
+            id: container_wrapper
+            adaptive_height: True
             orientation: 'vertical'
-            padding: dp(0)
-            size_hint_x: 0.4
-            elevation: 2
-            radius: [12, 12, 12, 12]
+            padding: dp(10)
             
+            # Este es el layout que busca el código Python (children[0])
             MDBoxLayout:
-                adaptive_height: True
-                padding: dp(10)
-                md_bg_color: app.theme_cls.primary_light
-                radius: [12, 12, 0, 0]
-                MDLabel:
-                    text: "Selección"
-                    font_style: "Subtitle2"
-                    theme_text_color: "Custom"
-                    text_color: 0,0,0,1
-                    halign: "center"
-            
-            MDScrollView:
-                MDList:
-                    id: herraje_type_list
-
-        MDCard:
-            orientation: 'vertical'
-            padding: dp(0)
-            size_hint_x: 0.6
-            elevation: 2
-            radius: [12, 12, 12, 12]
-            
-            MDBoxLayout:
-                adaptive_height: True
-                padding: dp(10)
-                md_bg_color: app.theme_cls.primary_light
-                radius: [12, 12, 0, 0]
-                MDLabel:
-                    text: "Configuración"
-                    font_style: "Subtitle2"
-                    theme_text_color: "Custom"
-                    text_color: 0,0,0,1
-                    halign: "center"
-
-            MDScrollView:
-                id: herraje_details_container
-                MDBoxLayout:
-                    orientation: 'vertical'
-                    adaptive_height: True
-                    padding: dp(15)
-                    spacing: dp(15)
-
-    MDBoxLayout:
-        orientation: 'horizontal'
-        spacing: dp(15)
-        size_hint_y: 0.40
-
-        MDCard:
-            orientation: 'vertical'
-            padding: dp(0)
-            size_hint_x: 0.5
-            elevation: 1
-            radius: [8, 8, 8, 8]
-            md_bg_color: [0.95, 0.95, 0.95, 1]
-            
-            MDBoxLayout:
+                id: herraje_details_container_layout
+                orientation: 'vertical'
                 adaptive_height: True
                 padding: dp(5)
-                md_bg_color: [0.9, 0.9, 0.9, 1]
-                radius: [8, 8, 0, 0]
-                MDLabel:
-                    text: "Panel en Curso (Click para editar)"
-                    font_style: "Caption"
-                    halign: "center"
-            
-            MDScrollView:
-                MDList:
-                    id: current_panel_list
+                spacing: dp(15)
 
+    # 3. LISTA ACTUAL (Abajo)
+    MDCard:
+        orientation: 'vertical'
+        padding: dp(0)
+        size_hint_y: None
+        height: dp(130)
+        elevation: 1
+        radius: [8, 8, 8, 8]
+        md_bg_color: [0.95, 0.95, 0.95, 1]
+        
         MDBoxLayout:
-            orientation: 'vertical'
-            spacing: dp(10)
-            size_hint_x: 0.5
             adaptive_height: True
-            pos_hint: {'center_y': 0.5}
-            
-            MDRaisedButton:
-                text: "Aceptar Complemento"
-                on_release: root.accept_herraje()
-                size_hint_x: 1
-                md_bg_color: app.theme_cls.primary_color
-                elevation: 2
-            
-            MDRaisedButton:
-                text: "Otro Complemento"
-                on_release: root.reset_herraje_form()
-                size_hint_x: 1
-                md_bg_color: app.theme_cls.accent_color
-            
-            MDRectangleFlatButton:
-                text: "Volver / Salir"
-                on_release: root.close_dialog()
-                size_hint_x: 1
+            padding: dp(5)
+            md_bg_color: [0.9, 0.9, 0.9, 1]
+            radius: [8, 8, 0, 0]
+            MDLabel:
+                text: "Herrajes del Panel Actual"
+                font_style: "Caption"
+                halign: "center"
+        
+        MDScrollView:
+            MDList:
+                id: current_panel_list
+
+    # 4. BOTONES DE ACCIÓN (Al final, siempre accesibles por scroll)
+    MDBoxLayout:
+        orientation: 'vertical'
+        spacing: dp(10)
+        adaptive_height: True
+        
+        MDRaisedButton:
+            text: "Añadir / Aceptar Complemento"
+            on_release: root.accept_herraje()
+            size_hint_x: 1
+            md_bg_color: app.theme_cls.primary_color
+            elevation: 2
+        
+        MDRaisedButton:
+            text: "Limpiar Formulario"
+            on_release: root.reset_herraje_form()
+            size_hint_x: 1
+            md_bg_color: app.theme_cls.accent_color
+        
+        MDRectangleFlatButton:
+            text: "Cerrar Ventana"
+            on_release: root.close_dialog()
+            size_hint_x: 1
 '''
 
 # --- Funciones auxiliares ---
@@ -508,10 +519,8 @@ def show_snackbar(text, color=(0.2, 0.2, 0.2, 1)):
 def get_storage_path():
     """Devuelve una ruta segura para guardar archivos según el dispositivo."""
     if platform == 'android':
-        # Intenta guardar en la carpeta pública de Documentos (si se tienen permisos)
-        # O en la carpeta de la App
         from android.storage import primary_external_storage_path
-        dir_path = os.path.join(primary_external_storage_path(), 'Download') # Descargas es más seguro sin SAF
+        dir_path = os.path.join(primary_external_storage_path(), 'Download') 
         if not os.path.exists(dir_path):
             dir_path = os.path.join(primary_external_storage_path(), 'Documents')
         return dir_path
@@ -816,7 +825,21 @@ class PanelDataScreen(BaseContentScreen):
             "herrajes": self.current_panel_herrajes
         }
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
-        self.herraje_dialog = MDDialog(title="Herrajes", type="custom", content_cls=self.herraje_dialog_content, size_hint=(0.95, 0.95), auto_dismiss=False)
+        
+        # --- CORRECCIÓN CRÍTICA PARA SCROLL EN MÓVIL ---
+        # Envolvemos todo el formulario en un ScrollView.
+        # De esta forma, si el teclado tapa algo, el usuario puede hacer scroll.
+        container_scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
+        container_scroll.add_widget(self.herraje_dialog_content)
+        
+        # Ajustamos el tamaño del Dialog para que ocupe casi toda la pantalla
+        self.herraje_dialog = MDDialog(
+            title="Herrajes", 
+            type="custom", 
+            content_cls=container_scroll, 
+            size_hint=(0.95, 0.95), 
+            auto_dismiss=False
+        )
         self.herraje_dialog.open()
 
     def confirm_add_panel(self):
@@ -993,7 +1016,11 @@ class HerrajesPopup(MDBoxLayout):
         self.show_herraje_details_form(h_type)
 
     def show_herraje_details_form(self, h_type):
-        c = self.ids.herraje_details_container.children[0]
+        # NOTA: En el nuevo diseño vertical, el contenedor está dentro de 'herraje_details_container_layout'
+        # que está dentro de 'container_wrapper' (un MDBoxLayout).
+        # El código original hacía: self.ids.herraje_details_container.children[0]
+        # Ahora en el KV hemos dado IDs más explícitos.
+        c = self.ids.herraje_details_container_layout
         c.clear_widgets()
         self.detail_widgets = {}
         ht = h_type.lower()
@@ -1073,7 +1100,8 @@ class HerrajesPopup(MDBoxLayout):
 
     def reset_herraje_form(self):
         self.selected_herraje_type = ""
-        self.ids.herraje_details_container.children[0].clear_widgets()
+        # Limpiar usando el ID correcto del nuevo diseño vertical
+        self.ids.herraje_details_container_layout.clear_widgets()
         self.detail_widgets = {}
 
     def close_dialog(self): self.parent_screen.herraje_dialog.dismiss()
@@ -1106,7 +1134,7 @@ class GlassDoorApp(MDApp):
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
 
         # FECHA LÍMITE
-        LIMIT_DATE_STR = "2026-01-30" 
+        LIMIT_DATE_STR = "2026-02-30" 
         limit_date = datetime.strptime(LIMIT_DATE_STR, "%Y-%m-%d")
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
