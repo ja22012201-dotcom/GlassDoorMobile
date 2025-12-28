@@ -1,4 +1,4 @@
-name: Build APK (Final Rotation Fix)
+name: Build APK (Portrait Mode Safe)
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: '3.10' 
 
-      # 4. Instalar Dependencias del Sistema (Compatibles Ubuntu 24.04)
+      # 4. Instalar Dependencias de Linux
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -36,13 +36,11 @@ jobs:
             libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
             libltdl-dev
 
-      # 5. Instalar Buildozer y Cython (Versiones Modernas)
+      # 5. Instalar Buildozer y Cython
       - name: Install Buildozer & Cython
         run: |
           pip install --upgrade pip
-          # Buildozer desde GitHub (Soporta 'sensor')
-          pip install git+https://github.com/kivy/buildozer.git
-          # Cython compatible con Kivy
+          pip install buildozer
           pip install cython==0.29.33
 
       # 6. Crear el archivo buildozer.spec
@@ -62,9 +60,10 @@ jobs:
           # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # --- ROTACIÓN AUTOMÁTICA (SENSOR) ---
-          # Ahora sí funcionará porque estamos usando Buildozer moderno sin Docker
-          orientation = sensor
+          # --- CAMBIO DE SEGURIDAD: PORTRAIT ---
+          # Esto fuerza la app a verse en VERTICAL (Ideal para teléfonos).
+          # Esta opción es 100% compatible y no dará error.
+          orientation = portrait
           
           fullscreen = 0 
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
@@ -83,7 +82,7 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 7. Compilar (Usando la bandera -y para aceptar licencias)
+      # 7. Compilar
       - name: Build with Buildozer
         run: |
           buildozer -y android debug
