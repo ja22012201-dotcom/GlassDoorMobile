@@ -1,4 +1,4 @@
-name: Build APK (Break System Packages Fix)
+name: Build APK (Skip Pip Upgrade)
 
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
           # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # Rotación automática
+          # Rotación automática (sensor)
           orientation = sensor
           
           fullscreen = 0 
@@ -55,7 +55,7 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER (SALTANDO PROTECCIONES)
+      # 3. COMPILAR CON DOCKER
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -66,9 +66,9 @@ jobs:
                 sudo apt-get update -q && \
                 sudo apt-get install -y wget git libffi-dev libssl-dev && \
                 \
-                echo '>>> INSTALANDO DEPENDENCIAS (MODO FORCE)...' && \
-                # Aquí usamos --break-system-packages para saltarnos el bloqueo PEP 668
-                sudo pip install --break-system-packages --upgrade pip && \
+                echo '>>> INSTALANDO BUILDOZER (GIT) Y CYTHON...' && \
+                # NO actualizamos pip para evitar el error de Debian.
+                # Instalamos Buildozer desde GitHub para tener soporte de 'sensor'.
                 sudo pip install --break-system-packages --force-reinstall git+https://github.com/kivy/buildozer.git && \
                 sudo pip install --break-system-packages cython==0.29.33 && \
                 \
