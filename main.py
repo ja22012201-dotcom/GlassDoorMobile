@@ -18,22 +18,24 @@ from kivy.lang import Builder
 from kivy.properties import ObjectProperty, DictProperty, ListProperty, StringProperty, NumericProperty, BooleanProperty
 from kivy.clock import Clock
 from kivy.uix.screenmanager import ScreenManager
-from kivy.metrics import dp, Metrics
+from kivy.metrics import dp, Metrics, sp
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Line, Rectangle, Ellipse
 from kivy.utils import get_color_from_hex, platform
 from kivy.core.window import Window
 
-# --- CONFIGURACIÓN DE PANTALLA Y TECLADO ---
-# Redimensionar al sacar teclado
+# --- CONFIGURACIÓN DE PANTALLA ---
+# Redimensionar la ventana cuando sale el teclado
 Window.softinput_mode = 'resize'
-# Zoom Out para que quepa más contenido
-Metrics.density = 0.85
+
+# ¡IMPORTANTE! Hemos quitado "Metrics.density = 0.85".
+# Ahora usamos la densidad nativa del móvil para que el texto se vea GRANDE y legible.
+# Como tenemos ScrollView, no importa si ocupa más espacio vertical.
 
 import fase1_logic
 import fase2_drawing
 
-# --- DISEÑO KV INTEGRADO ---
+# --- DISEÑO KV INTEGRADO (Textos agrandados) ---
 KV_DESIGN = '''
 <ProjectDataScreen>:
     name: 'project_data_screen'
@@ -60,7 +62,7 @@ KV_DESIGN = '''
                     font_style: "H5"
                     size_hint_y: None
                     height: self.texture_size[1]
-                    padding_y: dp(10)
+                    padding_y: dp(15)
 
                 MDRaisedButton:
                     text: "Cargar Proyecto Guardado"
@@ -68,6 +70,8 @@ KV_DESIGN = '''
                     pos_hint: {'center_x': 0.5}
                     on_release: app.open_load_dialog()
                     md_bg_color: app.theme_cls.accent_color
+                    font_size: "18sp"
+                    padding: dp(20)
 
                 MDBoxLayout:
                     size_hint_y: None
@@ -79,38 +83,43 @@ KV_DESIGN = '''
                     hint_text: "Nombre del Proyecto"
                     required: True
                     max_text_length: 50
+                    font_size: "18sp"
                     on_text: app.project_data['proyecto'] = self.text
                     size_hint_y: None
-                    height: dp(60)
+                    height: dp(70)
 
                 MDTextField:
                     id: client_input
                     mode: "fill"
                     hint_text: "Cliente"
                     max_text_length: 50
+                    font_size: "18sp"
                     on_text: app.project_data['cliente'] = self.text
                     size_hint_y: None
-                    height: dp(60)
+                    height: dp(70)
 
                 MDTextField:
                     id: author_input
                     mode: "fill"
                     hint_text: "Autor / Taller"
                     max_text_length: 50
+                    font_size: "18sp"
                     on_text: app.project_data['autor'] = self.text
                     size_hint_y: None
-                    height: dp(60)
+                    height: dp(70)
 
                 MDBoxLayout:
                     adaptive_height: True
-                    spacing: dp(10)
-                    padding: dp(10), dp(20), dp(10), dp(0)
+                    spacing: dp(20)
+                    padding: dp(10), dp(30), dp(10), dp(50)
                     MDRectangleFlatButton:
                         text: "Salir"
+                        font_size: "16sp"
                         on_release: app.exit_app()
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
                     MDRectangleFlatButton:
                         text: "Continuar"
+                        font_size: "16sp"
                         on_release: root.save_and_next()
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
 
@@ -139,7 +148,7 @@ KV_DESIGN = '''
                     font_style: "H5"
                     size_hint_y: None
                     height: self.texture_size[1]
-                    padding_y: dp(10)
+                    padding_y: dp(15)
 
                 MDTextField:
                     id: ancho_hueco_input
@@ -147,9 +156,10 @@ KV_DESIGN = '''
                     hint_text: "Ancho total (mm)"
                     input_type: "number"
                     required: True
+                    font_size: "18sp"
                     on_text: root.validate_and_set_float(self, 'ancho', app.hueco_data)
                     size_hint_y: None
-                    height: dp(60)
+                    height: dp(70)
                 
                 MDTextField:
                     id: alto_hueco_input
@@ -157,29 +167,33 @@ KV_DESIGN = '''
                     hint_text: "Alto total (mm)"
                     input_type: "number"
                     required: True
+                    font_size: "18sp"
                     on_text: root.validate_and_set_float(self, 'alto', app.hueco_data)
                     size_hint_y: None
-                    height: dp(60)
+                    height: dp(70)
 
                 MDTextField:
                     id: color_herrajes_input
                     mode: "fill"
                     hint_text: "Color de los herrajes"
                     text: app.hueco_data['color_herrajes']
+                    font_size: "18sp"
                     on_text: app.hueco_data['color_herrajes'] = self.text
                     size_hint_y: None
-                    height: dp(60)
+                    height: dp(70)
 
                 MDBoxLayout:
                     adaptive_height: True
-                    spacing: dp(10)
-                    padding: dp(10), dp(20), dp(10), dp(0)
+                    spacing: dp(20)
+                    padding: dp(10), dp(30), dp(10), dp(50)
                     MDRectangleFlatButton:
                         text: "Atrás"
+                        font_size: "16sp"
                         on_release: app.show_screen('project_data_screen')
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
                     MDRectangleFlatButton:
                         text: "Aceptar"
+                        font_size: "16sp"
                         on_release: root.save_and_next()
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
 
@@ -205,7 +219,7 @@ KV_DESIGN = '''
                 MDCard:
                     orientation: 'vertical'
                     size_hint_y: None
-                    height: dp(200)
+                    height: dp(250)
                     elevation: 2
                     padding: dp(5)
                     radius: [10, 10, 10, 10]
@@ -213,10 +227,10 @@ KV_DESIGN = '''
                     
                     MDLabel:
                         text: "Vista Previa"
-                        font_style: "Caption"
+                        font_style: "Subtitle1"
                         halign: "center"
                         size_hint_y: None
-                        height: dp(15)
+                        height: dp(30)
                     
                     DrawingWidget:
                         id: preview_area
@@ -239,8 +253,9 @@ KV_DESIGN = '''
                         
                         MDLabel:
                             text: "Tipo:"
+                            font_style: "Body1"
                             size_hint_x: None
-                            width: dp(40)
+                            width: dp(50)
                             pos_hint: {'center_y': 0.5}
                         
                         MDBoxLayout:
@@ -250,18 +265,21 @@ KV_DESIGN = '''
                             MDRaisedButton:
                                 id: btn_fijo
                                 text: "Fijo"
+                                font_size: "16sp"
                                 on_release: root.set_panel_type_from_toggle("Fijo")
                                 disabled: True
                                 elevation: 0
                             MDRaisedButton:
                                 id: btn_puerta
                                 text: "Puerta"
+                                font_size: "16sp"
                                 on_release: root.set_panel_type_from_toggle("Puerta")
                                 disabled: True
                                 elevation: 0
                             MDRaisedButton:
                                 id: btn_montante
                                 text: "Montante"
+                                font_size: "16sp"
                                 on_release: root.set_panel_type_from_toggle("Montante")
                                 disabled: True
                                 elevation: 0
@@ -271,10 +289,11 @@ KV_DESIGN = '''
                         mode: "fill"
                         hint_text: "Material"
                         text: root.current_panel_material
+                        font_size: "18sp"
                         on_text: root.current_panel_material = self.text
                         disabled: True
                         size_hint_y: None
-                        height: dp(50)
+                        height: dp(60)
 
                     MDBoxLayout:
                         adaptive_height: True
@@ -285,6 +304,7 @@ KV_DESIGN = '''
                             hint_text: "Alto (mm)"
                             input_type: "number"
                             required: True
+                            font_size: "18sp"
                             on_text: root.validate_and_set_float_property(self, 'current_panel_alto')
                             disabled: True
                             size_hint_x: 0.5
@@ -294,6 +314,7 @@ KV_DESIGN = '''
                             hint_text: "Ancho (mm)"
                             input_type: "number"
                             required: True
+                            font_size: "18sp"
                             on_text: root.validate_and_set_float_property(self, 'current_panel_ancho')
                             disabled: True
                             size_hint_x: 0.5
@@ -306,19 +327,22 @@ KV_DESIGN = '''
                         
                         MDRaisedButton:
                             id: btn_nuevo_vidrio
-                            text: "Nuevo/Limpiar"
+                            text: "Nuevo / Limpiar"
+                            font_size: "16sp"
                             on_release: root.start_new_vidrio()
                             md_bg_color: app.theme_cls.primary_color
                         
                         MDRaisedButton:
                             id: btn_add_herraje
                             text: "+ Herraje"
+                            font_size: "16sp"
                             on_release: root.open_herraje_dialog()
                             disabled: True
 
                         MDRaisedButton:
                             id: btn_aceptar_vidrio
                             text: "Aceptar Vidrio"
+                            font_size: "16sp"
                             on_release: root.confirm_add_panel()
                             disabled: True
                             md_bg_color: app.theme_cls.accent_color
@@ -328,7 +352,7 @@ KV_DESIGN = '''
                     padding: dp(0)
                     spacing: dp(0)
                     size_hint_y: None
-                    height: dp(250)
+                    height: dp(300)
                     elevation: 1
                     radius: [10, 10, 10, 10]
                     md_bg_color: [0.95, 0.95, 0.95, 1]
@@ -351,6 +375,7 @@ KV_DESIGN = '''
                 MDGridLayout:
                     cols: 2
                     spacing: dp(10)
+                    padding: dp(0), dp(0), dp(0), dp(50)
                     size_hint_y: None
                     height: self.minimum_height
                     adaptive_height: True
@@ -381,8 +406,8 @@ KV_DESIGN = '''
 
 <HerrajesPopup>:
     orientation: 'vertical'
-    spacing: dp(15)
-    padding: dp(10)
+    spacing: dp(20)
+    padding: dp(15)
     adaptive_height: True
     
     # 1. SELECCIÓN DE TIPO
@@ -390,7 +415,7 @@ KV_DESIGN = '''
         orientation: 'vertical'
         padding: dp(0)
         size_hint_y: None
-        height: dp(160)
+        height: dp(200)
         elevation: 2
         radius: [12, 12, 12, 12]
         
@@ -401,7 +426,7 @@ KV_DESIGN = '''
             radius: [12, 12, 0, 0]
             MDLabel:
                 text: "1. Seleccione Tipo"
-                font_style: "Subtitle2"
+                font_style: "H6"
                 theme_text_color: "Custom"
                 text_color: 0,0,0,1
                 halign: "center"
@@ -425,7 +450,7 @@ KV_DESIGN = '''
             radius: [12, 12, 0, 0]
             MDLabel:
                 text: "2. Configuración"
-                font_style: "Subtitle2"
+                font_style: "H6"
                 theme_text_color: "Custom"
                 text_color: 0,0,0,1
                 halign: "center"
@@ -434,21 +459,21 @@ KV_DESIGN = '''
             id: container_wrapper
             adaptive_height: True
             orientation: 'vertical'
-            padding: dp(10)
+            padding: dp(15)
             
             MDBoxLayout:
                 id: herraje_details_container_layout
                 orientation: 'vertical'
                 adaptive_height: True
                 padding: dp(5)
-                spacing: dp(15)
+                spacing: dp(20)
 
     # 3. LISTA ACTUAL
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
         size_hint_y: None
-        height: dp(130)
+        height: dp(150)
         elevation: 1
         radius: [8, 8, 8, 8]
         md_bg_color: [0.95, 0.95, 0.95, 1]
@@ -460,7 +485,7 @@ KV_DESIGN = '''
             radius: [8, 8, 0, 0]
             MDLabel:
                 text: "Herrajes del Panel Actual"
-                font_style: "Caption"
+                font_style: "Subtitle1"
                 halign: "center"
         
         MDScrollView:
@@ -470,31 +495,36 @@ KV_DESIGN = '''
     # 4. BOTONES DE ACCIÓN
     MDBoxLayout:
         orientation: 'vertical'
-        spacing: dp(10)
+        spacing: dp(15)
         adaptive_height: True
+        padding: dp(0), dp(10), dp(0), dp(20)
         
         MDRaisedButton:
             text: "Añadir / Aceptar Complemento"
+            font_size: "18sp"
             on_release: root.accept_herraje()
             size_hint_x: 1
             md_bg_color: app.theme_cls.primary_color
             elevation: 2
+            padding: dp(15)
         
         MDRaisedButton:
             text: "Limpiar Formulario"
+            font_size: "16sp"
             on_release: root.reset_herraje_form()
             size_hint_x: 1
             md_bg_color: app.theme_cls.accent_color
         
         MDRectangleFlatButton:
             text: "Cerrar Ventana"
+            font_size: "16sp"
             on_release: root.close_dialog()
             size_hint_x: 1
 '''
 
 # --- Funciones auxiliares ---
 def create_safe_dialog(title, text, buttons=None):
-    content = MDLabel(text=text, theme_text_color="Primary", adaptive_height=True)
+    content = MDLabel(text=text, theme_text_color="Primary", adaptive_height=True, font_style="Body1")
     return MDDialog(title=title, type="custom", content_cls=content, buttons=buttons if buttons else [])
 
 def show_alert(title, text):
@@ -503,7 +533,7 @@ def show_alert(title, text):
 
 def show_snackbar(text, color=(0.2, 0.2, 0.2, 1)):
     try:
-        sb = Snackbar(text=text, bg_color=color, duration=1.5)
+        sb = Snackbar(text=text, bg_color=color, duration=1.5, font_size="16sp")
         sb.open()
     except TypeError:
          show_alert("Aviso", text)
@@ -821,6 +851,9 @@ class PanelDataScreen(BaseContentScreen):
         }
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
+        # En PC y Android con diseño vertical, ya no necesitamos el ScrollView externo 
+        # (porque el contenido tiene sus propios controles o cabe).
+        
         self.herraje_dialog = MDDialog(
             title="Herrajes", 
             type="custom", 
@@ -1117,7 +1150,7 @@ class GlassDoorApp(MDApp):
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
 
         # FECHA LÍMITE (SOLUCIÓN SEGURA HARDCODED)
-        limit_date = datetime(2026, 1, 30)
+        limit_date = datetime(2026, 2, 28)
         
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
