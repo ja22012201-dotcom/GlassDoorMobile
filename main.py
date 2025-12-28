@@ -18,22 +18,18 @@ from kivy.lang import Builder
 from kivy.properties import ObjectProperty, DictProperty, ListProperty, StringProperty, NumericProperty, BooleanProperty
 from kivy.clock import Clock
 from kivy.uix.screenmanager import ScreenManager
-from kivy.metrics import dp, Metrics # Importado Metrics
+from kivy.metrics import dp, Metrics
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Line, Rectangle, Ellipse
 from kivy.utils import get_color_from_hex, platform
 from kivy.core.window import Window
-from kivy.uix.scrollview import ScrollView # Importado ScrollView
 
 # --- CONFIGURACIÓN DE PANTALLA Y TECLADO ---
-# 1. Ajuste de teclado para que no tape los campos (redimensiona la ventana)
+# Redimensionar al sacar teclado
 Window.softinput_mode = 'resize'
-
-# 2. "Zoom Out": Simulamos una pantalla más grande reduciendo la densidad.
-# Valores < 1.0 hacen los widgets más pequeños. 0.85 es un buen equilibrio.
+# Zoom Out para que quepa más contenido
 Metrics.density = 0.85
 
-# Importar lógica
 import fase1_logic
 import fase2_drawing
 
@@ -383,15 +379,13 @@ KV_DESIGN = '''
                         on_release: app.exit_app()
                         size_hint_x: 1
 
-# --- REDISEÑO DE HERRAJES POPUP (VERTICAL Y ADAPTATIVO) ---
 <HerrajesPopup>:
     orientation: 'vertical'
     spacing: dp(15)
     padding: dp(10)
     adaptive_height: True
-    # Eliminamos el height fijo para que se adapte al contenido dentro del ScrollView
-
-    # 1. SELECCIÓN DE TIPO (Arriba)
+    
+    # 1. SELECCIÓN DE TIPO
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -416,7 +410,7 @@ KV_DESIGN = '''
             MDList:
                 id: herraje_type_list
 
-    # 2. CONFIGURACIÓN (En medio, crece según el contenido)
+    # 2. CONFIGURACIÓN
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -436,14 +430,12 @@ KV_DESIGN = '''
                 text_color: 0,0,0,1
                 halign: "center"
 
-        # Contenedor para los campos dinámicos
         MDBoxLayout:
             id: container_wrapper
             adaptive_height: True
             orientation: 'vertical'
             padding: dp(10)
             
-            # Este es el layout que busca el código Python (children[0])
             MDBoxLayout:
                 id: herraje_details_container_layout
                 orientation: 'vertical'
@@ -451,7 +443,7 @@ KV_DESIGN = '''
                 padding: dp(5)
                 spacing: dp(15)
 
-    # 3. LISTA ACTUAL (Abajo)
+    # 3. LISTA ACTUAL
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -475,7 +467,7 @@ KV_DESIGN = '''
             MDList:
                 id: current_panel_list
 
-    # 4. BOTONES DE ACCIÓN (Al final, siempre accesibles por scroll)
+    # 4. BOTONES DE ACCIÓN
     MDBoxLayout:
         orientation: 'vertical'
         spacing: dp(10)
@@ -517,7 +509,6 @@ def show_snackbar(text, color=(0.2, 0.2, 0.2, 1)):
          show_alert("Aviso", text)
 
 def get_storage_path():
-    """Devuelve una ruta segura para guardar archivos según el dispositivo."""
     if platform == 'android':
         from android.storage import primary_external_storage_path
         dir_path = os.path.join(primary_external_storage_path(), 'Download') 
@@ -818,7 +809,11 @@ class PanelDataScreen(BaseContentScreen):
         return True
 
     def open_herraje_dialog(self):
-        if not self.validate_panel_dims(): return
+        # AVISO DE SEGURIDAD
+        if not self.validate_panel_dims(): 
+            show_alert("Atención", "Debes introducir Ancho y Alto del vidrio antes de añadir herrajes.")
+            return
+
         data = {
             "tipo": self.current_panel_type.lower(), "material": self.current_panel_material,
             "ancho": self.current_panel_ancho, "alto": self.current_panel_alto,
@@ -826,17 +821,10 @@ class PanelDataScreen(BaseContentScreen):
         }
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
-        # --- CORRECCIÓN CRÍTICA PARA SCROLL EN MÓVIL ---
-        # Envolvemos todo el formulario en un ScrollView.
-        # De esta forma, si el teclado tapa algo, el usuario puede hacer scroll.
-        container_scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
-        container_scroll.add_widget(self.herraje_dialog_content)
-        
-        # Ajustamos el tamaño del Dialog para que ocupe casi toda la pantalla
         self.herraje_dialog = MDDialog(
             title="Herrajes", 
             type="custom", 
-            content_cls=container_scroll, 
+            content_cls=self.herraje_dialog_content, 
             size_hint=(0.95, 0.95), 
             auto_dismiss=False
         )
@@ -1016,10 +1004,6 @@ class HerrajesPopup(MDBoxLayout):
         self.show_herraje_details_form(h_type)
 
     def show_herraje_details_form(self, h_type):
-        # NOTA: En el nuevo diseño vertical, el contenedor está dentro de 'herraje_details_container_layout'
-        # que está dentro de 'container_wrapper' (un MDBoxLayout).
-        # El código original hacía: self.ids.herraje_details_container.children[0]
-        # Ahora en el KV hemos dado IDs más explícitos.
         c = self.ids.herraje_details_container_layout
         c.clear_widgets()
         self.detail_widgets = {}
@@ -1100,7 +1084,6 @@ class HerrajesPopup(MDBoxLayout):
 
     def reset_herraje_form(self):
         self.selected_herraje_type = ""
-        # Limpiar usando el ID correcto del nuevo diseño vertical
         self.ids.herraje_details_container_layout.clear_widgets()
         self.detail_widgets = {}
 
@@ -1133,9 +1116,9 @@ class GlassDoorApp(MDApp):
             from android.permissions import request_permissions, Permission
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
 
-        # FECHA LÍMITE
-        LIMIT_DATE_STR = "2026-02-30" 
-        limit_date = datetime.strptime(LIMIT_DATE_STR, "%Y-%m-%d")
+        # FECHA LÍMITE (SOLUCIÓN SEGURA HARDCODED)
+        limit_date = datetime(2026, 1, 30)
+        
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
     def show_expiration_dialog(self):
