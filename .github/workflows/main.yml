@@ -1,4 +1,4 @@
-name: Build APK (Clean Environment)
+name: Build APK (Ubuntu 24.04 Fix)
 
 on:
   push:
@@ -27,28 +27,28 @@ jobs:
         with:
           python-version: '3.10' 
 
-      # 4. Instalar Dependencias del Sistema (Las librerías de Linux)
+      # 4. Instalar Dependencias del Sistema (CORREGIDO PARA UBUNTU 24.04)
+      # Hemos quitado 'libtinfo5' y cambiado 'libncurses5-dev' por 'libncurses-dev'
       - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             zip unzip autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+            libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
             libltdl-dev
 
-      # 5. Instalar Buildozer y Cython (Aquí bajamos lo más nuevo)
+      # 5. Instalar Buildozer y Cython
       - name: Install Buildozer & Cython
         run: |
           pip install --upgrade pip
-          # Instalamos Buildozer directamente de GitHub para asegurar soporte 'sensor'
+          # Instalamos Buildozer desde GitHub para asegurar soporte 'sensor'
           pip install git+https://github.com/kivy/buildozer.git
-          # Versión estable de Cython para Kivy
+          # Versión estable de Cython
           pip install cython==0.29.33
 
       # 6. Crear el archivo buildozer.spec
       - name: Create Buildozer Spec
         run: |
-          # Borramos si existe alguno viejo
           rm -f buildozer.spec
           
           cat <<EOT >> buildozer.spec
@@ -63,8 +63,7 @@ jobs:
           # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # --- ROTACIÓN AUTOMÁTICA (SENSOR) ---
-          # Al instalar Buildozer nuevo en el paso 5, esto funcionará.
+          # Orientación automática
           orientation = sensor
           
           fullscreen = 0 
@@ -87,7 +86,6 @@ jobs:
       # 7. Compilar (Buildozer bajará el SDK/NDK automáticamente)
       - name: Build with Buildozer
         run: |
-          # Aceptamos licencias automáticamente y compilamos
           yes | buildozer android debug
 
       # 8. Subir el APK
