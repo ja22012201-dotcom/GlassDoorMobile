@@ -1,4 +1,4 @@
-name: Build APK (Skip Pip Upgrade)
+name: Build APK (Virtual Env Fix)
 
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
           # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # Rotación automática (sensor)
+          # ROTACIÓN AUTOMÁTICA (SENSOR)
           orientation = sensor
           
           fullscreen = 0 
@@ -55,32 +55,34 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER
+      # 3. COMPILAR CON DOCKER (USANDO VIRTUALENV)
       - name: Build with Docker
         run: |
           chmod 777 .
           docker run --rm -v $(pwd):/home/user/hostcwd \
             --entrypoint /bin/bash \
             kivy/buildozer \
-            -c "echo '>>> INSTALANDO HERRAMIENTAS...' && \
+            -c "echo '>>> PREPARANDO SISTEMA...' && \
                 sudo apt-get update -q && \
-                sudo apt-get install -y wget git libffi-dev libssl-dev && \
+                sudo apt-get install -y python3-venv wget git libffi-dev libssl-dev && \
                 \
-                echo '>>> INSTALANDO BUILDOZER (GIT) Y CYTHON...' && \
-                # NO actualizamos pip para evitar el error de Debian.
-                # Instalamos Buildozer desde GitHub para tener soporte de 'sensor'.
-                sudo pip install --break-system-packages --force-reinstall git+https://github.com/kivy/buildozer.git && \
-                sudo pip install --break-system-packages cython==0.29.33 && \
+                echo '>>> CREANDO BURBUJA (VENV)...' && \
+                python3 -m venv myenv && \
+                source myenv/bin/activate && \
+                \
+                echo '>>> INSTALANDO BUILDOZER MODERNO EN LA BURBUJA...' && \
+                pip install git+https://github.com/kivy/buildozer.git && \
+                pip install cython==0.29.33 && \
                 \
                 echo '>>> INYECTANDO ANT...' && \
                 mkdir -p .buildozer/android/platform/apache-ant-1.9.4 && \
                 wget --no-check-certificate https://dlcdn.apache.org//ant/binaries/apache-ant-1.10.15-bin.tar.gz -O ant.tar.gz && \
                 tar -xf ant.tar.gz --strip-components=1 -C .buildozer/android/platform/apache-ant-1.9.4 && \
                 \
-                echo '>>> INICIANDO COMPILACIÓN...' && \
+                echo '>>> COMPILANDO DENTRO DE LA BURBUJA...' && \
                 export BUILDOZER_WARN_ON_ROOT=0 && \
                 export USE_CCACHE=0 && \
-                python3 -m buildozer android debug"
+                buildozer android debug"
 
       # 4. Ajustar permisos del APK
       - name: Fix APK Permissions
