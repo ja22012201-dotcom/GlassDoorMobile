@@ -1,4 +1,4 @@
-name: Build APK (Fix Wget & Sensor)
+name: Build APK (Source Install Fix)
 
 on:
   push:
@@ -35,7 +35,8 @@ jobs:
           # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # --- ROTACIÓN AUTOMÁTICA (SENSOR) ---
+          # --- ROTACIÓN AUTOMÁTICA ---
+          # Esto funcionará porque instalamos Buildozer desde el código fuente (git)
           orientation = sensor
           
           fullscreen = 0 
@@ -55,7 +56,7 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER (TODO EN UNO)
+      # 3. COMPILAR CON DOCKER (INSTALACIÓN DESDE GIT)
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -64,15 +65,12 @@ jobs:
             kivy/buildozer \
             -c "echo '>>> INSTALANDO HERRAMIENTAS...' && \
                 sudo apt-get update -q && \
-                sudo apt-get install -y wget libffi-dev libssl-dev && \
+                sudo apt-get install -y wget git libffi-dev libssl-dev && \
                 \
-                echo '>>> ELIMINANDO VERSIÓN VIEJA...' && \
-                sudo rm -f /usr/local/bin/buildozer && \
-                \
-                echo '>>> INSTALANDO NUEVO BUILDOZER...' && \
-                pip install --upgrade pip && \
-                pip install buildozer && \
-                pip install cython==0.29.33 && \
+                echo '>>> FORZANDO INSTALACIÓN DESDE GITHUB...' && \
+                sudo pip install --upgrade pip && \
+                sudo pip install --force-reinstall git+https://github.com/kivy/buildozer.git && \
+                sudo pip install cython==0.29.33 && \
                 \
                 echo '>>> INYECTANDO ANT...' && \
                 mkdir -p .buildozer/android/platform/apache-ant-1.9.4 && \
