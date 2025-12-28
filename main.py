@@ -18,24 +18,21 @@ from kivy.lang import Builder
 from kivy.properties import ObjectProperty, DictProperty, ListProperty, StringProperty, NumericProperty, BooleanProperty
 from kivy.clock import Clock
 from kivy.uix.screenmanager import ScreenManager
-from kivy.metrics import dp, Metrics, sp
+from kivy.metrics import dp, Metrics
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Line, Rectangle, Ellipse
 from kivy.utils import get_color_from_hex, platform
 from kivy.core.window import Window
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.gridlayout import GridLayout
 
 # --- CONFIGURACIÓN DE PANTALLA ---
-# Redimensionar la ventana cuando sale el teclado
 Window.softinput_mode = 'resize'
-
-# ¡IMPORTANTE! Hemos quitado "Metrics.density = 0.85".
-# Ahora usamos la densidad nativa del móvil para que el texto se vea GRANDE y legible.
-# Como tenemos ScrollView, no importa si ocupa más espacio vertical.
 
 import fase1_logic
 import fase2_drawing
 
-# --- DISEÑO KV INTEGRADO (Textos agrandados) ---
+# --- DISEÑO KV INTEGRADO ---
 KV_DESIGN = '''
 <ProjectDataScreen>:
     name: 'project_data_screen'
@@ -405,10 +402,12 @@ KV_DESIGN = '''
                         size_hint_x: 1
 
 <HerrajesPopup>:
-    orientation: 'vertical'
+    # IMPORTANTE: Fondo blanco para evitar que se vea negro
+    md_bg_color: [1, 1, 1, 1] 
+    cols: 1
     spacing: dp(20)
     padding: dp(15)
-    adaptive_height: True
+    size_hint_y: None 
     
     # 1. SELECCIÓN DE TIPO
     MDCard:
@@ -851,14 +850,26 @@ class PanelDataScreen(BaseContentScreen):
         }
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
-        # En PC y Android con diseño vertical, ya no necesitamos el ScrollView externo 
-        # (porque el contenido tiene sus propios controles o cabe).
+        # --- SOLUCIÓN DE ALTURA ---
+        # Forzamos una altura fija del 80% de la ventana.
+        # Esto asegura que el contenido sea visible tanto en PC como en Android.
+        container_scroll = ScrollView(
+            size_hint_y=None,
+            height=Window.height * 0.8, # Altura calculada fija
+            do_scroll_x=False, 
+            do_scroll_y=True
+        )
+        
+        # Binding para que el contenido interno (GridLayout) diga cuánto mide
+        self.herraje_dialog_content.bind(minimum_height=self.herraje_dialog_content.setter('height'))
+        
+        container_scroll.add_widget(self.herraje_dialog_content)
         
         self.herraje_dialog = MDDialog(
             title="Herrajes", 
             type="custom", 
-            content_cls=self.herraje_dialog_content, 
-            size_hint=(0.95, 0.95), 
+            content_cls=container_scroll, 
+            size_hint=(0.95, None), # Ancho 95%, Alto automático (según container_scroll)
             auto_dismiss=False
         )
         self.herraje_dialog.open()
@@ -941,13 +952,16 @@ class PanelDataScreen(BaseContentScreen):
 
 # --- Subventana Herrajes ---
 
-class HerrajesPopup(MDBoxLayout):
+class HerrajesPopup(GridLayout): # IMPORTANTE: Usamos GridLayout (estable)
     panel_data = DictProperty({})
     parent_screen = ObjectProperty()
     selected_herraje_type = StringProperty("")
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.cols = 1
+        self.bind(minimum_height=self.setter('height'))
+        
         self.herraje_types = ["Pinza", "Bisagra", "Bisagra Doble", "Pomo", "Tirador", "Toallero", "U", "Perfil Burbuja", "Perfil Imán 45º", "Perfil Vierte-Aguas", "Taladro"]
         Clock.schedule_once(self.populate_herraje_types)
         Clock.schedule_once(lambda dt: self.update_current_panel_summary())
@@ -1149,9 +1163,8 @@ class GlassDoorApp(MDApp):
             from android.permissions import request_permissions, Permission
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
 
-        # FECHA LÍMITE (SOLUCIÓN SEGURA HARDCODED)
+        # FECHA LÍMITE
         limit_date = datetime(2026, 2, 28)
-        
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
     def show_expiration_dialog(self):
