@@ -21,12 +21,15 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
+          # Instalamos las dependencias gráficas de Windows explícitamente
           pip install kivy==2.2.1 kivymd==1.2.0 pillow reportlab pyinstaller
+          pip install kivy_deps.angle kivy_deps.glew kivy_deps.sdl2
 
       - name: Build EXE with PyInstaller
-        # Este comando crea un solo archivo .exe (--onefile)
-        # --noconsole: Para que no salga la pantalla negra de comandos detrás
-        # --collect-all kivymd: IMPORTANTE para que incluya los iconos y temas de KivyMD
+        # --- EL TRUCO ESTÁ AQUÍ ---
+        # Definimos esta variable para que Kivy no intente buscar OpenGL puro y falle.
+        env:
+          KIVY_GL_BACKEND: angle_sdl2
         run: |
           pyinstaller --name GlassDoorPC --onefile --noconsole --collect-all kivymd main.py
 
