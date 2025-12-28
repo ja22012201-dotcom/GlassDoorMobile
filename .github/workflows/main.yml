@@ -1,4 +1,4 @@
-name: Build Android APK (Auto-Rotation Fix)
+name: Build Android APK (Update & Rotate)
 
 on:
   push:
@@ -32,16 +32,14 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Requisitos (Kivy 2.2.1 + KivyMD 1.2.0 para estabilidad)
+          # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # --- CAMBIO CORREGIDO: ALL ---
-          # 'all' permite rotación total (vertical y horizontal) usando el giroscopio.
-          orientation = all
+          # --- CAMBIO CLAVE: SENSOR ---
+          # Ahora funcionará porque actualizamos Buildozer en el paso 3.
+          orientation = sensor
           
           fullscreen = 0 
-          # Barra de estado visible (mejor para uso vertical)
-          
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
           # Configuración Android - NDK 25b
@@ -63,7 +61,7 @@ jobs:
           EOT
 
       # 3. COMPILAR CON DOCKER
-      # Usamos Cython 0.29.33 (Compatible con Kivy 2.2.1)
+      # AÑADIDO: pip install --upgrade buildozer (Para que entienda 'sensor')
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -71,6 +69,7 @@ jobs:
             --entrypoint /bin/bash \
             kivy/buildozer \
             -c "sudo apt-get update && sudo apt-get install -y wget && \
+                pip install --upgrade buildozer && \
                 pip install cython==0.29.33 && \
                 \
                 echo '>>> ESTRATEGIA ANT: INYECCIÓN MANUAL...' && \
