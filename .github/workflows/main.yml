@@ -1,4 +1,4 @@
-name: Build APK (Ubuntu 24.04 Fix)
+name: Build APK (Orientation ALL Fix)
 
 on:
   push:
@@ -14,21 +14,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. Preparar Java (Necesario para Android)
+      # 2. Preparar Java 17 (Estándar actual)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 3. Preparar Python
+      # 3. Preparar Python 3.10
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10' 
 
-      # 4. Instalar Dependencias del Sistema (CORREGIDO PARA UBUNTU 24.04)
-      # Hemos quitado 'libtinfo5' y cambiado 'libncurses5-dev' por 'libncurses-dev'
+      # 4. Instalar Dependencias de Linux (Ubuntu 24.04)
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -37,13 +36,13 @@ jobs:
             libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
             libltdl-dev
 
-      # 5. Instalar Buildozer y Cython
+      # 5. Instalar Buildozer y Cython (Versiones Modernas)
       - name: Install Buildozer & Cython
         run: |
           pip install --upgrade pip
-          # Instalamos Buildozer desde GitHub para asegurar soporte 'sensor'
+          # Instalamos Buildozer desde el código fuente para tener lo último
           pip install git+https://github.com/kivy/buildozer.git
-          # Versión estable de Cython
+          # Cython compatible
           pip install cython==0.29.33
 
       # 6. Crear el archivo buildozer.spec
@@ -63,8 +62,9 @@ jobs:
           # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # Orientación automática
-          orientation = sensor
+          # --- CAMBIO DEFINITIVO: ALL ---
+          # 'all' significa: Vertical, Horizontal y Sensores activados.
+          orientation = all
           
           fullscreen = 0 
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
@@ -83,10 +83,10 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 7. Compilar (Buildozer bajará el SDK/NDK automáticamente)
+      # 7. Compilar (Usando la bandera -y para aceptar licencias)
       - name: Build with Buildozer
         run: |
-          yes | buildozer android debug
+          buildozer -y android debug
 
       # 8. Subir el APK
       - name: Upload APK
