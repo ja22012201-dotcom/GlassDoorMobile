@@ -26,6 +26,14 @@ from kivy.core.window import Window
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 
+# --- IMPORTACIONES ESPECÍFICAS PARA PC (VENTANAS NATIVAS) ---
+if platform != 'android':
+    import tkinter as tk
+    from tkinter import filedialog
+    # Ocultamos la ventana "base" de tkinter para que no moleste
+    root_tk = tk.Tk()
+    root_tk.withdraw()
+
 # --- CONFIGURACIÓN DE PANTALLA ---
 Window.softinput_mode = 'resize'
 
@@ -65,7 +73,7 @@ KV_DESIGN = '''
                     text: "Cargar Proyecto Guardado"
                     icon: "folder-open"
                     pos_hint: {'center_x': 0.5}
-                    on_release: app.open_load_dialog()
+                    on_release: app.smart_load_dialog()
                     md_bg_color: app.theme_cls.accent_color
                     font_size: "18sp"
                     padding: dp(20)
@@ -379,7 +387,7 @@ KV_DESIGN = '''
                     
                     MDRectangleFlatButton:
                         text: "Guardar Proyecto"
-                        on_release: app.open_save_dialog()
+                        on_release: app.smart_save_dialog()
                         size_hint_x: 1
                         text_color: 0, 0.5, 0, 1
                         line_color: 0, 0.5, 0, 1
@@ -391,7 +399,7 @@ KV_DESIGN = '''
 
                     MDRectangleFlatButton:
                         text: "Generar PDF"
-                        on_release: app.open_save_pdf_dialog()
+                        on_release: app.smart_pdf_dialog()
                         size_hint_x: 1
                         text_color: 0, 0, 1, 1
                         line_color: 0, 0, 1, 1
@@ -402,14 +410,12 @@ KV_DESIGN = '''
                         size_hint_x: 1
 
 <HerrajesPopup>:
-    # IMPORTANTE: Fondo blanco para evitar que se vea negro
     md_bg_color: [1, 1, 1, 1] 
     cols: 1
     spacing: dp(20)
     padding: dp(15)
     size_hint_y: None 
     
-    # 1. SELECCIÓN DE TIPO
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -434,7 +440,6 @@ KV_DESIGN = '''
             MDList:
                 id: herraje_type_list
 
-    # 2. CONFIGURACIÓN
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -467,7 +472,6 @@ KV_DESIGN = '''
                 padding: dp(5)
                 spacing: dp(20)
 
-    # 3. LISTA ACTUAL
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -491,7 +495,6 @@ KV_DESIGN = '''
             MDList:
                 id: current_panel_list
 
-    # 4. BOTONES DE ACCIÓN
     MDBoxLayout:
         orientation: 'vertical'
         spacing: dp(15)
@@ -850,17 +853,14 @@ class PanelDataScreen(BaseContentScreen):
         }
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
-        # --- SOLUCIÓN DE ALTURA ---
-        # Forzamos una altura fija del 80% de la ventana.
-        # Esto asegura que el contenido sea visible tanto en PC como en Android.
+        # --- SCROLL PARA MÓVIL Y PC ---
         container_scroll = ScrollView(
             size_hint_y=None,
-            height=Window.height * 0.8, # Altura calculada fija
+            height=Window.height * 0.8,
             do_scroll_x=False, 
             do_scroll_y=True
         )
         
-        # Binding para que el contenido interno (GridLayout) diga cuánto mide
         self.herraje_dialog_content.bind(minimum_height=self.herraje_dialog_content.setter('height'))
         
         container_scroll.add_widget(self.herraje_dialog_content)
@@ -869,7 +869,7 @@ class PanelDataScreen(BaseContentScreen):
             title="Herrajes", 
             type="custom", 
             content_cls=container_scroll, 
-            size_hint=(0.95, None), # Ancho 95%, Alto automático (según container_scroll)
+            size_hint=(0.95, None), 
             auto_dismiss=False
         )
         self.herraje_dialog.open()
@@ -952,7 +952,7 @@ class PanelDataScreen(BaseContentScreen):
 
 # --- Subventana Herrajes ---
 
-class HerrajesPopup(GridLayout): # IMPORTANTE: Usamos GridLayout (estable)
+class HerrajesPopup(GridLayout): # GridLayout para estabilidad
     panel_data = DictProperty({})
     parent_screen = ObjectProperty()
     selected_herraje_type = StringProperty("")
@@ -1165,6 +1165,7 @@ class GlassDoorApp(MDApp):
 
         # FECHA LÍMITE
         limit_date = datetime(2026, 2, 28)
+        
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
     def show_expiration_dialog(self):
@@ -1203,9 +1204,81 @@ class GlassDoorApp(MDApp):
             widget.redraw(d)
         except Exception: pass
 
-    # --- DIALOGOS DE GUARDADO/CARGA MANUALES (SIN TKINTER) ---
-    def open_save_dialog(self):
-        # Preguntar nombre de archivo
+    # --- FUNCIONES HÍBRIDAS PARA GUARDAR/CARGAR ---
+    def smart_save_dialog(self):
+        """Elige el método de guardado según la plataforma."""
+        if platform == 'android':
+            self.open_save_dialog_android()
+        else:
+            self.open_save_dialog_pc()
+
+    def smart_pdf_dialog(self):
+        """Elige el método de PDF según la plataforma."""
+        if platform == 'android':
+            self.open_save_pdf_dialog_android()
+        else:
+            self.open_save_pdf_dialog_pc()
+
+    def smart_load_dialog(self):
+        """Elige el método de carga según la plataforma."""
+        if platform == 'android':
+            self.open_load_dialog_android()
+        else:
+            self.open_load_dialog_pc()
+
+    # --- LÓGICA PC (Nativa con Tkinter) ---
+    def open_save_dialog_pc(self):
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            filepath = filedialog.asksaveasfilename(
+                defaultextension=".json",
+                filetypes=[("Archivos JSON", "*.json")],
+                title="Guardar Proyecto Como..."
+            )
+            root.destroy()
+            if filepath:
+                self.save_project_to_path(filepath)
+        except Exception as e:
+            show_alert("Error PC", str(e))
+
+    def open_save_pdf_dialog_pc(self):
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            filepath = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("Archivos PDF", "*.pdf")],
+                title="Guardar PDF Como..."
+            )
+            root.destroy()
+            if filepath:
+                self.generate_pdf_to_path(filepath)
+        except Exception as e:
+            show_alert("Error PC", str(e))
+
+    def open_load_dialog_pc(self):
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            filepath = filedialog.askopenfilename(
+                filetypes=[("Archivos JSON", "*.json")],
+                title="Abrir Proyecto"
+            )
+            root.destroy()
+            if filepath:
+                self.load_project_from_path(filepath)
+        except Exception as e:
+            show_alert("Error PC", str(e))
+
+    # --- LÓGICA ANDROID (Manual con MDDialog) ---
+    def open_save_dialog_android(self):
         self.input_filename = MDTextField(hint_text="Nombre del archivo (sin .json)")
         self.save_dialog = MDDialog(
             title="Guardar Proyecto",
@@ -1213,32 +1286,24 @@ class GlassDoorApp(MDApp):
             content_cls=self.input_filename,
             buttons=[
                 MDRectangleFlatButton(text="Cancelar", on_release=lambda x: self.save_dialog.dismiss()),
-                MDRaisedButton(text="Guardar", on_release=self.finish_save_project)
+                MDRaisedButton(text="Guardar", on_release=self.finish_save_project_android)
             ],
             auto_dismiss=False
         )
         self.save_dialog.open()
 
-    def finish_save_project(self, *args):
+    def finish_save_project_android(self, *args):
         name = self.input_filename.text.strip()
         if not name:
-            show_alert("Error", "Debes escribir un nombre.")
+            show_alert("Error", "Escribe un nombre.")
             return
-        
-        try:
-            folder = get_storage_path()
-            if not os.path.exists(folder): os.makedirs(folder)
-            filepath = os.path.join(folder, f"{name}.json")
-            
-            save_data = {"project_data": dict(self.project_data), "hueco_data": dict(self.hueco_data), "panels_raw_data": list(self.panels_raw_data)}
-            with open(filepath, 'w', encoding='utf-8') as f: json.dump(save_data, f, indent=4)
-            
-            self.save_dialog.dismiss()
-            show_snackbar(f"Guardado en: {filepath}")
-        except Exception as e:
-            show_alert("Error al guardar", str(e))
+        folder = get_storage_path()
+        if not os.path.exists(folder): os.makedirs(folder)
+        filepath = os.path.join(folder, f"{name}.json")
+        self.save_project_to_path(filepath)
+        self.save_dialog.dismiss()
 
-    def open_save_pdf_dialog(self):
+    def open_save_pdf_dialog_android(self):
         self.input_pdfname = MDTextField(hint_text="Nombre del PDF (sin .pdf)")
         self.pdf_dialog = MDDialog(
             title="Generar PDF",
@@ -1246,65 +1311,80 @@ class GlassDoorApp(MDApp):
             content_cls=self.input_pdfname,
             buttons=[
                 MDRectangleFlatButton(text="Cancelar", on_release=lambda x: self.pdf_dialog.dismiss()),
-                MDRaisedButton(text="Guardar PDF", on_release=self.finish_save_pdf)
+                MDRaisedButton(text="Guardar PDF", on_release=self.finish_save_pdf_android)
             ],
             auto_dismiss=False
         )
         self.pdf_dialog.open()
 
-    def finish_save_pdf(self, *args):
+    def finish_save_pdf_android(self, *args):
         name = self.input_pdfname.text.strip()
         if not name:
-            show_alert("Error", "Debes escribir un nombre.")
+            show_alert("Error", "Escribe un nombre.")
             return
-        
-        try:
-            folder = get_storage_path()
-            if not os.path.exists(folder): os.makedirs(folder)
-            filepath = os.path.join(folder, f"{name}.pdf")
-            
-            data = fase1_logic.process_panel_data(self.project_data, self.hueco_data, self.panels_raw_data)
-            fase2_drawing.generate_pdf_drawing(data, filepath)
-            
-            self.pdf_dialog.dismiss()
-            create_safe_dialog("Éxito", f"PDF guardado en:\n{filepath}").open()
-        except Exception as e:
-            show_alert("Error al guardar PDF", str(e))
-
-    def open_load_dialog(self):
-        # Listar archivos JSON en la carpeta de documentos
         folder = get_storage_path()
         if not os.path.exists(folder): os.makedirs(folder)
-        
+        filepath = os.path.join(folder, f"{name}.pdf")
+        self.generate_pdf_to_path(filepath)
+        self.pdf_dialog.dismiss()
+
+    def open_load_dialog_android(self):
+        folder = get_storage_path()
+        if not os.path.exists(folder): os.makedirs(folder)
         files = [f for f in os.listdir(folder) if f.endswith('.json')]
         
         if not files:
-            show_alert("Info", f"No hay proyectos guardados en:\n{folder}")
+            show_alert("Info", f"No hay proyectos en:\n{folder}")
             return
 
-        # Crear lista visual
         scroll = MDBoxLayout(orientation="vertical", adaptive_height=True, size_hint_y=None)
-        
         for f in files:
-            item = OneLineAvatarIconListItem(text=f, on_release=partial(self.finish_load_project, os.path.join(folder, f)))
-            item.add_widget(IconLeftWidget(icon="file-document"))
-            scroll.add_widget(item)
+            btn_load = OneLineAvatarIconListItem(
+                text=f, 
+                on_release=partial(self.finish_load_project_android, os.path.join(folder, f))
+            )
+            btn_load.add_widget(IconLeftWidget(icon="file-document"))
+            scroll.add_widget(btn_load)
 
-        # Usamos un ScrollView dentro del dialogo
-        from kivy.uix.scrollview import ScrollView
         sv = ScrollView(size_hint_y=None, height=dp(300))
         sv.add_widget(scroll)
+
+        btn_cancel = MDRectangleFlatButton(
+            text="Cancelar", 
+            on_release=lambda x: self.load_dialog.dismiss()
+        )
 
         self.load_dialog = MDDialog(
             title="Seleccionar Proyecto",
             type="custom",
             content_cls=sv,
-            buttons=[MDRectangleFlatButton(text="Cancelar", on_release=lambda x: self.load_dialog.dismiss())],
+            buttons=[btn_cancel],
             auto_dismiss=False
         )
         self.load_dialog.open()
 
-    def finish_load_project(self, filepath, *args):
+    def finish_load_project_android(self, filepath, *args):
+        self.load_project_from_path(filepath)
+        self.load_dialog.dismiss()
+
+    # --- LÓGICA COMÚN (Back-end) ---
+    def save_project_to_path(self, filepath):
+        try:
+            save_data = {"project_data": dict(self.project_data), "hueco_data": dict(self.hueco_data), "panels_raw_data": list(self.panels_raw_data)}
+            with open(filepath, 'w', encoding='utf-8') as f: json.dump(save_data, f, indent=4)
+            show_snackbar(f"Guardado: {os.path.basename(filepath)}")
+        except Exception as e:
+            show_alert("Error Guardar", str(e))
+
+    def generate_pdf_to_path(self, filepath):
+        try:
+            data = fase1_logic.process_panel_data(self.project_data, self.hueco_data, self.panels_raw_data)
+            fase2_drawing.generate_pdf_drawing(data, filepath)
+            create_safe_dialog("Éxito", f"PDF creado:\n{filepath}").open()
+        except Exception as e:
+            show_alert("Error PDF", str(e))
+
+    def load_project_from_path(self, filepath):
         try:
             with open(filepath, 'r', encoding='utf-8') as f: loaded = json.load(f)
             self.project_data = loaded.get('project_data', {})
@@ -1316,10 +1396,9 @@ class GlassDoorApp(MDApp):
             screen.ids.client_input.text = self.project_data.get('cliente', '')
             screen.ids.author_input.text = self.project_data.get('autor', '')
             
-            self.load_dialog.dismiss()
             show_snackbar("Proyecto cargado.")
             self.show_screen('hole_data_screen')
         except Exception as e:
-            show_alert("Error al cargar", str(e))
+            show_alert("Error Cargar", str(e))
 
 if __name__ == '__main__': GlassDoorApp().run()
