@@ -1,4 +1,4 @@
-name: Build APK (Source Install Fix)
+name: Build APK (Break System Packages Fix)
 
 on:
   push:
@@ -35,8 +35,7 @@ jobs:
           # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # --- ROTACIÓN AUTOMÁTICA ---
-          # Esto funcionará porque instalamos Buildozer desde el código fuente (git)
+          # Rotación automática
           orientation = sensor
           
           fullscreen = 0 
@@ -56,7 +55,7 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER (INSTALACIÓN DESDE GIT)
+      # 3. COMPILAR CON DOCKER (SALTANDO PROTECCIONES)
       - name: Build with Docker
         run: |
           chmod 777 .
@@ -67,10 +66,11 @@ jobs:
                 sudo apt-get update -q && \
                 sudo apt-get install -y wget git libffi-dev libssl-dev && \
                 \
-                echo '>>> FORZANDO INSTALACIÓN DESDE GITHUB...' && \
-                sudo pip install --upgrade pip && \
-                sudo pip install --force-reinstall git+https://github.com/kivy/buildozer.git && \
-                sudo pip install cython==0.29.33 && \
+                echo '>>> INSTALANDO DEPENDENCIAS (MODO FORCE)...' && \
+                # Aquí usamos --break-system-packages para saltarnos el bloqueo PEP 668
+                sudo pip install --break-system-packages --upgrade pip && \
+                sudo pip install --break-system-packages --force-reinstall git+https://github.com/kivy/buildozer.git && \
+                sudo pip install --break-system-packages cython==0.29.33 && \
                 \
                 echo '>>> INYECTANDO ANT...' && \
                 mkdir -p .buildozer/android/platform/apache-ant-1.9.4 && \
