@@ -1,4 +1,4 @@
-name: Build Android APK (Update & Rotate)
+name: Build Android APK (Force Upgrade)
 
 on:
   push:
@@ -35,8 +35,8 @@ jobs:
           # Requisitos
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # --- CAMBIO CLAVE: SENSOR ---
-          # Ahora funcionará porque actualizamos Buildozer en el paso 3.
+          # --- ROTACIÓN AUTOMÁTICA ---
+          # Ahora funcionará porque forzamos la actualización de Buildozer abajo
           orientation = sensor
           
           fullscreen = 0 
@@ -60,28 +60,34 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 3. COMPILAR CON DOCKER
-      # AÑADIDO: pip install --upgrade buildozer (Para que entienda 'sensor')
+      # 3. COMPILAR CON DOCKER (MODO AGRESIVO)
       - name: Build with Docker
         run: |
           chmod 777 .
           docker run --rm -v $(pwd):/home/user/hostcwd \
             --entrypoint /bin/bash \
             kivy/buildozer \
-            -c "sudo apt-get update && sudo apt-get install -y wget && \
+            -c "echo '>>> ACTUALIZANDO SISTEMA...' && \
+                sudo apt-get update -q && \
+                sudo apt-get install -y libffi-dev libssl-dev && \
+                \
+                echo '>>> FORZANDO ACTUALIZACIÓN BUILDOZER...' && \
+                pip install --upgrade pip && \
                 pip install --upgrade buildozer && \
                 pip install cython==0.29.33 && \
                 \
-                echo '>>> ESTRATEGIA ANT: INYECCIÓN MANUAL...' && \
+                echo '>>> VERIFICANDO VERSIÓN...' && \
+                export PATH=\$HOME/.local/bin:\$PATH && \
+                buildozer --version && \
+                \
+                echo '>>> INYECTANDO ANT...' && \
                 mkdir -p .buildozer/android/platform/apache-ant-1.9.4 && \
                 wget --no-check-certificate https://dlcdn.apache.org//ant/binaries/apache-ant-1.10.15-bin.tar.gz -O ant.tar.gz && \
                 tar -xf ant.tar.gz --strip-components=1 -C .buildozer/android/platform/apache-ant-1.9.4 && \
                 \
-                echo '>>> CONFIGURANDO ENTORNO...' && \
+                echo '>>> INICIANDO COMPILACIÓN...' && \
                 export BUILDOZER_WARN_ON_ROOT=0 && \
                 export USE_CCACHE=0 && \
-                \
-                echo '>>> INICIANDO COMPILACIÓN...' && \
                 buildozer android debug"
 
       # 4. Ajustar permisos del APK
