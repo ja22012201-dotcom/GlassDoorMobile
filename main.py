@@ -1,6 +1,20 @@
-import os
-import json
 import sys
+import os
+
+# --- VACUNA CONTRA EL ERROR DE RECURSIÓN EN WINDOWS (EXE) ---
+# Esto debe ir ANTES de cualquier importación de Kivy
+if getattr(sys, 'frozen', False):
+    # Si estamos dentro del EXE, prohibimos a Kivy escribir logs.
+    # Esto corta el bucle infinito de 'ntpath' de raíz.
+    os.environ["KIVY_NO_CONSOLELOG"] = "1"
+    os.environ["KIVY_NO_FILELOG"] = "1"
+    os.environ["KIVY_NO_ARGS"] = "1"
+    
+    # Por seguridad, aumentamos el límite de memoria de recursión
+    sys.setrecursionlimit(5000)
+
+# --- IMPORTACIONES NORMALES ---
+import json
 from datetime import datetime
 from functools import partial
 from kivymd.app import MDApp
@@ -28,11 +42,14 @@ from kivy.uix.gridlayout import GridLayout
 
 # --- IMPORTACIONES ESPECÍFICAS PARA PC (VENTANAS NATIVAS) ---
 if platform != 'android':
-    import tkinter as tk
-    from tkinter import filedialog
-    # Ocultamos la ventana "base" de tkinter para que no moleste
-    root_tk = tk.Tk()
-    root_tk.withdraw()
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        # Ocultamos la ventana "base" de tkinter para que no moleste
+        root_tk = tk.Tk()
+        root_tk.withdraw()
+    except ImportError:
+        pass # Si falla en algún entorno raro, no rompemos la app
 
 # --- CONFIGURACIÓN DE PANTALLA ---
 Window.softinput_mode = 'resize'
@@ -410,12 +427,14 @@ KV_DESIGN = '''
                         size_hint_x: 1
 
 <HerrajesPopup>:
+    # IMPORTANTE: Fondo blanco para evitar que se vea negro
     md_bg_color: [1, 1, 1, 1] 
     cols: 1
     spacing: dp(20)
     padding: dp(15)
     size_hint_y: None 
     
+    # 1. SELECCIÓN DE TIPO
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -440,6 +459,7 @@ KV_DESIGN = '''
             MDList:
                 id: herraje_type_list
 
+    # 2. CONFIGURACIÓN
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -472,6 +492,7 @@ KV_DESIGN = '''
                 padding: dp(5)
                 spacing: dp(20)
 
+    # 3. LISTA ACTUAL
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -495,6 +516,7 @@ KV_DESIGN = '''
             MDList:
                 id: current_panel_list
 
+    # 4. BOTONES DE ACCIÓN
     MDBoxLayout:
         orientation: 'vertical'
         spacing: dp(15)
@@ -854,13 +876,19 @@ class PanelDataScreen(BaseContentScreen):
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
         # --- SCROLL PARA MÓVIL Y PC ---
+        # Definimos una altura relativa para que funcione bien en ambos
         container_scroll = ScrollView(
-            size_hint_y=None,
-            height=Window.height * 0.8,
+            size_hint=(1, 1), 
             do_scroll_x=False, 
             do_scroll_y=True
         )
         
+        # En PC, a veces el diálogo se ve muy pequeño si no forzamos un mínimo
+        # En Android, se adapta bien.
+        if platform != 'android':
+             container_scroll.size_hint_y = None
+             container_scroll.height = Window.height * 0.7 # 70% de la ventana en PC
+
         self.herraje_dialog_content.bind(minimum_height=self.herraje_dialog_content.setter('height'))
         
         container_scroll.add_widget(self.herraje_dialog_content)
@@ -869,7 +897,7 @@ class PanelDataScreen(BaseContentScreen):
             title="Herrajes", 
             type="custom", 
             content_cls=container_scroll, 
-            size_hint=(0.95, None), 
+            size_hint=(0.95, 0.95 if platform == 'android' else None), 
             auto_dismiss=False
         )
         self.herraje_dialog.open()
@@ -1163,8 +1191,8 @@ class GlassDoorApp(MDApp):
             from android.permissions import request_permissions, Permission
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
 
-        # FECHA LÍMITE
-        limit_date = datetime(2026, 2, 28)
+        # FECHA LÍMITE (SOLUCIÓN SEGURA HARDCODED)
+        limit_date = datetime(2026, 1, 30)
         
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
@@ -1233,6 +1261,8 @@ class GlassDoorApp(MDApp):
             from tkinter import filedialog
             root = tk.Tk()
             root.withdraw()
+            # Aseguramos que la ventana aparezca arriba
+            root.attributes("-topmost", True)
             filepath = filedialog.asksaveasfilename(
                 defaultextension=".json",
                 filetypes=[("Archivos JSON", "*.json")],
@@ -1250,6 +1280,7 @@ class GlassDoorApp(MDApp):
             from tkinter import filedialog
             root = tk.Tk()
             root.withdraw()
+            root.attributes("-topmost", True)
             filepath = filedialog.asksaveasfilename(
                 defaultextension=".pdf",
                 filetypes=[("Archivos PDF", "*.pdf")],
@@ -1267,6 +1298,7 @@ class GlassDoorApp(MDApp):
             from tkinter import filedialog
             root = tk.Tk()
             root.withdraw()
+            root.attributes("-topmost", True)
             filepath = filedialog.askopenfilename(
                 filetypes=[("Archivos JSON", "*.json")],
                 title="Abrir Proyecto"
