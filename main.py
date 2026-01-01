@@ -51,7 +51,7 @@ Window.softinput_mode = 'resize'
 import fase1_logic
 import fase2_drawing
 
-# --- DISEÑO KV INTEGRADO (CORREGIDO BOTONES Y TÍTULO) ---
+# --- DISEÑO KV INTEGRADO ---
 KV_DESIGN = '''
 <ProjectDataScreen>:
     name: 'project_data_screen'
@@ -338,28 +338,28 @@ KV_DESIGN = '''
                     # --- CORRECCIÓN DE BOTONES ---
                     MDBoxLayout:
                         adaptive_height: True
-                        spacing: dp(5)   # Reducido de 10 a 5 para que quepan
-                        padding: dp(2)   # Reducido de 5 a 2
+                        spacing: dp(5)
+                        padding: dp(2)
                         pos_hint: {'center_x': 0.5}
                         
                         MDRaisedButton:
                             id: btn_nuevo_vidrio
                             text: "Nuevo / Limpiar"
-                            font_size: "13sp" # Reducido de 16sp a 13sp
+                            font_size: "13sp"
                             on_release: root.start_new_vidrio()
                             md_bg_color: app.theme_cls.primary_color
                         
                         MDRaisedButton:
                             id: btn_add_herraje
                             text: "+ Herraje"
-                            font_size: "13sp" # Reducido de 16sp a 13sp
+                            font_size: "13sp"
                             on_release: root.open_herraje_dialog()
                             disabled: True
 
                         MDRaisedButton:
                             id: btn_aceptar_vidrio
-                            text: "Aceptar"  # Acortado de "Aceptar Vidrio"
-                            font_size: "13sp" # Reducido de 16sp a 13sp
+                            text: "Aceptar"
+                            font_size: "13sp"
                             on_release: root.confirm_add_panel()
                             disabled: True
                             md_bg_color: app.theme_cls.accent_color
@@ -382,7 +382,7 @@ KV_DESIGN = '''
                         # --- CORRECCIÓN DE TÍTULO ---
                         MDLabel:
                             text: "Ficha Técnica Global\\n(Click para editar)"
-                            font_style: "Subtitle1" # Cambiado de H6 a Subtitle1
+                            font_style: "Subtitle1"
                             bold: True
                             halign: "center"
                             theme_text_color: "Primary"
@@ -426,6 +426,7 @@ KV_DESIGN = '''
                         size_hint_x: 1
 
 <HerrajesPopup>:
+    # IMPORTANTE: Fondo blanco para evitar que se vea negro
     md_bg_color: [1, 1, 1, 1] 
     cols: 1
     spacing: dp(20)
@@ -857,6 +858,7 @@ class PanelDataScreen(BaseContentScreen):
         return True
 
     def open_herraje_dialog(self):
+        # AVISO DE SEGURIDAD
         if not self.validate_panel_dims(): 
             show_alert("Atención", "Debes introducir Ancho y Alto del vidrio antes de añadir herrajes.")
             return
@@ -868,10 +870,15 @@ class PanelDataScreen(BaseContentScreen):
         }
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
-        container_scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False, do_scroll_y=True)
-        if platform != 'android':
-             container_scroll.size_hint_y = None
-             container_scroll.height = Window.height * 0.7 
+        # --- SOLUCIÓN PANTALLA NEGRA ---
+        # Definimos una altura relativa (80% de la ventana) para que funcione en PC y Android.
+        # Esto fuerza al diálogo a expandirse y mostrar el contenido blanco.
+        container_scroll = ScrollView(
+            size_hint_y=None,
+            height=Window.height * 0.8, 
+            do_scroll_x=False, 
+            do_scroll_y=True
+        )
 
         self.herraje_dialog_content.bind(minimum_height=self.herraje_dialog_content.setter('height'))
         container_scroll.add_widget(self.herraje_dialog_content)
@@ -880,7 +887,7 @@ class PanelDataScreen(BaseContentScreen):
             title="Herrajes", 
             type="custom", 
             content_cls=container_scroll, 
-            size_hint=(0.95, 0.95 if platform == 'android' else None), 
+            size_hint=(0.95, None), 
             auto_dismiss=False
         )
         self.herraje_dialog.open()
