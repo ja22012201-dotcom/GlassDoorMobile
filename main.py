@@ -2,15 +2,10 @@ import sys
 import os
 
 # --- VACUNA CONTRA EL ERROR DE RECURSIÓN EN WINDOWS (EXE) ---
-# Esto debe ir ANTES de cualquier importación de Kivy
 if getattr(sys, 'frozen', False):
-    # Si estamos dentro del EXE, prohibimos a Kivy escribir logs.
-    # Esto corta el bucle infinito de 'ntpath' de raíz.
     os.environ["KIVY_NO_CONSOLELOG"] = "1"
     os.environ["KIVY_NO_FILELOG"] = "1"
     os.environ["KIVY_NO_ARGS"] = "1"
-    
-    # Por seguridad, aumentamos el límite de memoria de recursión
     sys.setrecursionlimit(5000)
 
 # --- IMPORTACIONES NORMALES ---
@@ -40,16 +35,15 @@ from kivy.core.window import Window
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 
-# --- IMPORTACIONES ESPECÍFICAS PARA PC (VENTANAS NATIVAS) ---
+# --- IMPORTACIONES ESPECÍFICAS PARA PC ---
 if platform != 'android':
     try:
         import tkinter as tk
         from tkinter import filedialog
-        # Ocultamos la ventana "base" de tkinter para que no moleste
         root_tk = tk.Tk()
         root_tk.withdraw()
     except ImportError:
-        pass # Si falla en algún entorno raro, no rompemos la app
+        pass
 
 # --- CONFIGURACIÓN DE PANTALLA ---
 Window.softinput_mode = 'resize'
@@ -57,7 +51,7 @@ Window.softinput_mode = 'resize'
 import fase1_logic
 import fase2_drawing
 
-# --- DISEÑO KV INTEGRADO ---
+# --- DISEÑO KV INTEGRADO (CORREGIDO BOTONES Y TÍTULO) ---
 KV_DESIGN = '''
 <ProjectDataScreen>:
     name: 'project_data_screen'
@@ -341,30 +335,31 @@ KV_DESIGN = '''
                             disabled: True
                             size_hint_x: 0.5
 
+                    # --- CORRECCIÓN DE BOTONES ---
                     MDBoxLayout:
                         adaptive_height: True
-                        spacing: dp(10)
-                        padding: dp(5)
+                        spacing: dp(5)   # Reducido de 10 a 5 para que quepan
+                        padding: dp(2)   # Reducido de 5 a 2
                         pos_hint: {'center_x': 0.5}
                         
                         MDRaisedButton:
                             id: btn_nuevo_vidrio
                             text: "Nuevo / Limpiar"
-                            font_size: "16sp"
+                            font_size: "13sp" # Reducido de 16sp a 13sp
                             on_release: root.start_new_vidrio()
                             md_bg_color: app.theme_cls.primary_color
                         
                         MDRaisedButton:
                             id: btn_add_herraje
                             text: "+ Herraje"
-                            font_size: "16sp"
+                            font_size: "13sp" # Reducido de 16sp a 13sp
                             on_release: root.open_herraje_dialog()
                             disabled: True
 
                         MDRaisedButton:
                             id: btn_aceptar_vidrio
-                            text: "Aceptar Vidrio"
-                            font_size: "16sp"
+                            text: "Aceptar"  # Acortado de "Aceptar Vidrio"
+                            font_size: "13sp" # Reducido de 16sp a 13sp
                             on_release: root.confirm_add_panel()
                             disabled: True
                             md_bg_color: app.theme_cls.accent_color
@@ -384,11 +379,15 @@ KV_DESIGN = '''
                         padding: dp(10)
                         md_bg_color: [0.9, 0.9, 0.9, 1]
                         radius: [10, 10, 0, 0]
+                        # --- CORRECCIÓN DE TÍTULO ---
                         MDLabel:
-                            text: "Ficha Técnica Global (Click para editar)"
-                            font_style: "H6"
+                            text: "Ficha Técnica Global\\n(Click para editar)"
+                            font_style: "Subtitle1" # Cambiado de H6 a Subtitle1
+                            bold: True
                             halign: "center"
                             theme_text_color: "Primary"
+                            size_hint_y: None
+                            height: self.texture_size[1]
 
                     MDScrollView:
                         MDList:
@@ -427,14 +426,12 @@ KV_DESIGN = '''
                         size_hint_x: 1
 
 <HerrajesPopup>:
-    # IMPORTANTE: Fondo blanco para evitar que se vea negro
     md_bg_color: [1, 1, 1, 1] 
     cols: 1
     spacing: dp(20)
     padding: dp(15)
     size_hint_y: None 
     
-    # 1. SELECCIÓN DE TIPO
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -459,7 +456,6 @@ KV_DESIGN = '''
             MDList:
                 id: herraje_type_list
 
-    # 2. CONFIGURACIÓN
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -492,7 +488,6 @@ KV_DESIGN = '''
                 padding: dp(5)
                 spacing: dp(20)
 
-    # 3. LISTA ACTUAL
     MDCard:
         orientation: 'vertical'
         padding: dp(0)
@@ -516,7 +511,6 @@ KV_DESIGN = '''
             MDList:
                 id: current_panel_list
 
-    # 4. BOTONES DE ACCIÓN
     MDBoxLayout:
         orientation: 'vertical'
         spacing: dp(15)
@@ -863,7 +857,6 @@ class PanelDataScreen(BaseContentScreen):
         return True
 
     def open_herraje_dialog(self):
-        # AVISO DE SEGURIDAD
         if not self.validate_panel_dims(): 
             show_alert("Atención", "Debes introducir Ancho y Alto del vidrio antes de añadir herrajes.")
             return
@@ -875,22 +868,12 @@ class PanelDataScreen(BaseContentScreen):
         }
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
-        # --- SCROLL PARA MÓVIL Y PC ---
-        # Definimos una altura relativa para que funcione bien en ambos
-        container_scroll = ScrollView(
-            size_hint=(1, 1), 
-            do_scroll_x=False, 
-            do_scroll_y=True
-        )
-        
-        # En PC, a veces el diálogo se ve muy pequeño si no forzamos un mínimo
-        # En Android, se adapta bien.
+        container_scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False, do_scroll_y=True)
         if platform != 'android':
              container_scroll.size_hint_y = None
-             container_scroll.height = Window.height * 0.7 # 70% de la ventana en PC
+             container_scroll.height = Window.height * 0.7 
 
         self.herraje_dialog_content.bind(minimum_height=self.herraje_dialog_content.setter('height'))
-        
         container_scroll.add_widget(self.herraje_dialog_content)
         
         self.herraje_dialog = MDDialog(
@@ -980,7 +963,7 @@ class PanelDataScreen(BaseContentScreen):
 
 # --- Subventana Herrajes ---
 
-class HerrajesPopup(GridLayout): # GridLayout para estabilidad
+class HerrajesPopup(GridLayout): 
     panel_data = DictProperty({})
     parent_screen = ObjectProperty()
     selected_herraje_type = StringProperty("")
@@ -1186,14 +1169,10 @@ class GlassDoorApp(MDApp):
     can_go_back = BooleanProperty(False)
 
     def on_start(self):
-        # Permisos Android
         if platform == 'android':
             from android.permissions import request_permissions, Permission
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
-
-        # FECHA LÍMITE (SOLUCIÓN SEGURA HARDCODED)
         limit_date = datetime(2026, 1, 30)
-        
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
     def show_expiration_dialog(self):
@@ -1234,25 +1213,16 @@ class GlassDoorApp(MDApp):
 
     # --- FUNCIONES HÍBRIDAS PARA GUARDAR/CARGAR ---
     def smart_save_dialog(self):
-        """Elige el método de guardado según la plataforma."""
-        if platform == 'android':
-            self.open_save_dialog_android()
-        else:
-            self.open_save_dialog_pc()
+        if platform == 'android': self.open_save_dialog_android()
+        else: self.open_save_dialog_pc()
 
     def smart_pdf_dialog(self):
-        """Elige el método de PDF según la plataforma."""
-        if platform == 'android':
-            self.open_save_pdf_dialog_android()
-        else:
-            self.open_save_pdf_dialog_pc()
+        if platform == 'android': self.open_save_pdf_dialog_android()
+        else: self.open_save_pdf_dialog_pc()
 
     def smart_load_dialog(self):
-        """Elige el método de carga según la plataforma."""
-        if platform == 'android':
-            self.open_load_dialog_android()
-        else:
-            self.open_load_dialog_pc()
+        if platform == 'android': self.open_load_dialog_android()
+        else: self.open_load_dialog_pc()
 
     # --- LÓGICA PC (Nativa con Tkinter) ---
     def open_save_dialog_pc(self):
@@ -1261,7 +1231,6 @@ class GlassDoorApp(MDApp):
             from tkinter import filedialog
             root = tk.Tk()
             root.withdraw()
-            # Aseguramos que la ventana aparezca arriba
             root.attributes("-topmost", True)
             filepath = filedialog.asksaveasfilename(
                 defaultextension=".json",
