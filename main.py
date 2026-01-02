@@ -526,8 +526,6 @@ KV_DESIGN = '''
             elevation: 2
             padding: dp(15)
         
-        # BOTÓN LIMPIAR ELIMINADO
-        
         MDRectangleFlatButton:
             text: "Cerrar Ventana"
             font_size: "16sp"
@@ -561,51 +559,67 @@ def get_storage_path():
     else:
         return os.path.expanduser("~/Documents")
 
-# --- LÓGICA DE COMPARTIR / ABRIR (MEJORADA PARA PC) ---
+# --- LÓGICA DE COMPARTIR / ABRIR (CORREGIDA Y BLINDADA) ---
 def native_share_file(filepath):
     """
     Comparte un archivo usando el intent nativo en Android o ABRE el archivo en PC.
+    Incluye manejo de errores para evitar que la app se cierre.
     """
     if platform == 'android':
-        from jnius import autoclass, cast
-        
-        # Clases Java necesarias
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        Intent = autoclass('android.content.Intent')
-        Uri = autoclass('android.net.Uri')
-        File = autoclass('java.io.File')
-        StrictMode = autoclass('android.os.StrictMode')
-
         try:
-            builder = StrictMode.VmPolicy.Builder()
-            StrictMode.setVmPolicy(builder.build())
-        except Exception:
-            pass 
+            from jnius import autoclass, cast
+            
+            # 1. Desactivar la seguridad estricta de archivos (El "Truco")
+            try:
+                StrictMode = autoclass('android.os.StrictMode')
+                builder = StrictMode.VmPolicy.Builder()
+                StrictMode.setVmPolicy(builder.build())
+            except Exception as e:
+                print(f"Advertencia StrictMode: {e}")
 
-        file_obj = File(filepath)
-        uri = Uri.fromFile(file_obj)
+            # 2. Clases Java necesarias
+            File = autoclass('java.io.File')
+            Intent = autoclass('android.content.Intent')
+            Uri = autoclass('android.net.Uri')
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
-        intent = Intent()
-        intent.setAction(Intent.ACTION_SEND)
-        intent.putExtra(Intent.EXTRA_STREAM, uri)
-        intent.setType("application/pdf")
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            # 3. Verificar que el archivo existe
+            file_obj = File(filepath)
+            if not file_obj.exists():
+                show_alert("Error", "El archivo PDF no se encuentra en el almacenamiento.")
+                return
 
-        currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-        chooser = Intent.createChooser(intent, "Compartir Plano con...")
-        currentActivity.startActivity(chooser)
-        
+            # 4. Crear el enlace al archivo (URI)
+            uri = Uri.fromFile(file_obj)
+
+            # 5. Configurar el Intent de envío
+            intent = Intent()
+            intent.setAction(Intent.ACTION_SEND)
+            intent.putExtra(Intent.EXTRA_STREAM, uri)
+            intent.setType("application/pdf")
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+            # 6. Lanzar la ventana de selección
+            currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
+            chooser = Intent.createChooser(intent, "Compartir Plano con...")
+            currentActivity.startActivity(chooser)
+
+        except Exception as e:
+            # SI OCURRE UN ERROR, LO MOSTRAMOS EN PANTALLA EN LUGAR DE CERRAR LA APP
+            error_msg = str(e)
+            show_alert("Error al Compartir", f"Detalle técnico:\n{error_msg}")
+            
     else:
-        # En PC, ABRIMOS el archivo directamente (petición de usuario)
+        # Lógica de PC (Abrir archivo directamente)
         try:
+            filepath = os.path.normpath(filepath)
             if sys.platform == 'win32':
-                os.startfile(filepath) # Solo funciona en Windows
+                os.startfile(filepath)
             else:
-                # Fallback para Linux/Mac
                 opener = "open" if sys.platform == "darwin" else "xdg-open"
                 subprocess.call([opener, filepath])
         except Exception as e:
-            show_alert("Info", f"Archivo guardado en:\n{filepath}\n(No se pudo abrir automáticamente: {e})")
+            show_alert("Info", f"Archivo guardado en:\n{filepath}\n(Error al abrir: {e})")
 
 # --- CLASE DRAWING WIDGET ---
 class DrawingWidget(Widget):
@@ -898,7 +912,6 @@ class PanelDataScreen(BaseContentScreen):
         return True
 
     def open_herraje_dialog(self):
-        # AVISO DE SEGURIDAD
         if not self.validate_panel_dims(): 
             show_alert("Atención", "Debes introducir Ancho y Alto del vidrio antes de añadir herrajes.")
             return
@@ -1220,7 +1233,7 @@ class GlassDoorApp(MDApp):
         if platform == 'android':
             from android.permissions import request_permissions, Permission
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
-        limit_date = datetime(2026, 1, 30)
+        limit_date = datetime(2026, 2, 28)
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
     def show_expiration_dialog(self):
