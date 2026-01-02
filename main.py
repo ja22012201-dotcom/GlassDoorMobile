@@ -1,5 +1,6 @@
 import sys
 import os
+import subprocess 
 
 # --- VACUNA CONTRA EL ERROR DE RECURSIÓN EN WINDOWS (EXE) ---
 if getattr(sys, 'frozen', False):
@@ -335,7 +336,6 @@ KV_DESIGN = '''
                             disabled: True
                             size_hint_x: 0.5
 
-                    # --- CORRECCIÓN DE BOTONES ---
                     MDBoxLayout:
                         adaptive_height: True
                         spacing: dp(5)
@@ -379,7 +379,6 @@ KV_DESIGN = '''
                         padding: dp(10)
                         md_bg_color: [0.9, 0.9, 0.9, 1]
                         radius: [10, 10, 0, 0]
-                        # --- CORRECCIÓN DE TÍTULO ---
                         MDLabel:
                             text: "Ficha Técnica Global\\n(Click para editar)"
                             font_style: "Subtitle1"
@@ -414,7 +413,7 @@ KV_DESIGN = '''
                         size_hint_x: 1
 
                     MDRectangleFlatButton:
-                        text: "Generar PDF"
+                        text: "Generar Plano"
                         on_release: app.smart_pdf_dialog()
                         size_hint_x: 1
                         text_color: 0, 0, 1, 1
@@ -527,12 +526,7 @@ KV_DESIGN = '''
             elevation: 2
             padding: dp(15)
         
-        MDRaisedButton:
-            text: "Limpiar Formulario"
-            font_size: "16sp"
-            on_release: root.reset_herraje_form()
-            size_hint_x: 1
-            md_bg_color: app.theme_cls.accent_color
+        # BOTÓN LIMPIAR ELIMINADO
         
         MDRectangleFlatButton:
             text: "Cerrar Ventana"
@@ -566,6 +560,52 @@ def get_storage_path():
         return dir_path
     else:
         return os.path.expanduser("~/Documents")
+
+# --- LÓGICA DE COMPARTIR / ABRIR (MEJORADA PARA PC) ---
+def native_share_file(filepath):
+    """
+    Comparte un archivo usando el intent nativo en Android o ABRE el archivo en PC.
+    """
+    if platform == 'android':
+        from jnius import autoclass, cast
+        
+        # Clases Java necesarias
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        Intent = autoclass('android.content.Intent')
+        Uri = autoclass('android.net.Uri')
+        File = autoclass('java.io.File')
+        StrictMode = autoclass('android.os.StrictMode')
+
+        try:
+            builder = StrictMode.VmPolicy.Builder()
+            StrictMode.setVmPolicy(builder.build())
+        except Exception:
+            pass 
+
+        file_obj = File(filepath)
+        uri = Uri.fromFile(file_obj)
+
+        intent = Intent()
+        intent.setAction(Intent.ACTION_SEND)
+        intent.putExtra(Intent.EXTRA_STREAM, uri)
+        intent.setType("application/pdf")
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+        currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
+        chooser = Intent.createChooser(intent, "Compartir Plano con...")
+        currentActivity.startActivity(chooser)
+        
+    else:
+        # En PC, ABRIMOS el archivo directamente (petición de usuario)
+        try:
+            if sys.platform == 'win32':
+                os.startfile(filepath) # Solo funciona en Windows
+            else:
+                # Fallback para Linux/Mac
+                opener = "open" if sys.platform == "darwin" else "xdg-open"
+                subprocess.call([opener, filepath])
+        except Exception as e:
+            show_alert("Info", f"Archivo guardado en:\n{filepath}\n(No se pudo abrir automáticamente: {e})")
 
 # --- CLASE DRAWING WIDGET ---
 class DrawingWidget(Widget):
@@ -870,9 +910,7 @@ class PanelDataScreen(BaseContentScreen):
         }
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
-        # --- SOLUCIÓN PANTALLA NEGRA ---
-        # Definimos una altura relativa (80% de la ventana) para que funcione en PC y Android.
-        # Esto fuerza al diálogo a expandirse y mostrar el contenido blanco.
+        # SOLUCIÓN PANTALLA NEGRA
         container_scroll = ScrollView(
             size_hint_y=None,
             height=Window.height * 0.8, 
@@ -1144,6 +1182,9 @@ class HerrajesPopup(GridLayout):
             self.panel_data['herrajes'].append(new)
             self.update_current_panel_summary()
             show_snackbar("Herraje añadido.")
+            # LIMPIAR AUTOMÁTICAMENTE EL FORMULARIO
+            self.reset_herraje_form()
+            
         except ValueError:
             show_alert("Error", "Datos inválidos.")
 
@@ -1239,7 +1280,10 @@ class GlassDoorApp(MDApp):
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
+            # PRE-RELLENAR NOMBRE DEL PROYECTO
+            default_name = self.project_data.get('proyecto', 'SinTitulo')
             filepath = filedialog.asksaveasfilename(
+                initialfile=default_name,
                 defaultextension=".json",
                 filetypes=[("Archivos JSON", "*.json")],
                 title="Guardar Proyecto Como..."
@@ -1257,10 +1301,13 @@ class GlassDoorApp(MDApp):
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
+            # PRE-RELLENAR NOMBRE DEL PROYECTO
+            default_name = self.project_data.get('proyecto', 'SinTitulo')
             filepath = filedialog.asksaveasfilename(
+                initialfile=default_name,
                 defaultextension=".pdf",
                 filetypes=[("Archivos PDF", "*.pdf")],
-                title="Guardar PDF Como..."
+                title="Guardar Plano Como..."
             )
             root.destroy()
             if filepath:
@@ -1287,7 +1334,9 @@ class GlassDoorApp(MDApp):
 
     # --- LÓGICA ANDROID (Manual con MDDialog) ---
     def open_save_dialog_android(self):
-        self.input_filename = MDTextField(hint_text="Nombre del archivo (sin .json)")
+        # PRE-RELLENAR NOMBRE DEL PROYECTO
+        default_name = self.project_data.get('proyecto', '')
+        self.input_filename = MDTextField(hint_text="Nombre del archivo (sin .json)", text=default_name)
         self.save_dialog = MDDialog(
             title="Guardar Proyecto",
             type="custom",
@@ -1312,14 +1361,16 @@ class GlassDoorApp(MDApp):
         self.save_dialog.dismiss()
 
     def open_save_pdf_dialog_android(self):
-        self.input_pdfname = MDTextField(hint_text="Nombre del PDF (sin .pdf)")
+        # PRE-RELLENAR NOMBRE DEL PROYECTO
+        default_name = self.project_data.get('proyecto', '')
+        self.input_pdfname = MDTextField(hint_text="Nombre del Plano (sin .pdf)", text=default_name)
         self.pdf_dialog = MDDialog(
-            title="Generar PDF",
+            title="Generar Plano",
             type="custom",
             content_cls=self.input_pdfname,
             buttons=[
                 MDRectangleFlatButton(text="Cancelar", on_release=lambda x: self.pdf_dialog.dismiss()),
-                MDRaisedButton(text="Guardar PDF", on_release=self.finish_save_pdf_android)
+                MDRaisedButton(text="Generar", on_release=self.finish_save_pdf_android)
             ],
             auto_dismiss=False
         )
@@ -1388,7 +1439,18 @@ class GlassDoorApp(MDApp):
         try:
             data = fase1_logic.process_panel_data(self.project_data, self.hueco_data, self.panels_raw_data)
             fase2_drawing.generate_pdf_drawing(data, filepath)
-            create_safe_dialog("Éxito", f"PDF creado:\n{filepath}").open()
+            
+            # --- PREGUNTAR SI ABRIR / COMPARTIR ---
+            dialog = MDDialog(
+                title="Plano Creado",
+                text=f"¿Deseas abrir el plano generado?\n{os.path.basename(filepath)}",
+                buttons=[
+                    MDRectangleFlatButton(text="Cerrar", on_release=lambda x: dialog.dismiss()),
+                    MDRaisedButton(text="ABRIR / COMPARTIR", on_release=lambda x: (dialog.dismiss(), native_share_file(filepath)))
+                ]
+            )
+            dialog.open()
+            
         except Exception as e:
             show_alert("Error PDF", str(e))
 
