@@ -1,0 +1,15 @@
+# Archivos de compilación y temporales
+bin/
+build/
+dist/
+__pycache__/
+*.spec
+*.apk
+*.exe
+*.zip
+
+# Archivos de proyecto locales (para no subir tus datos reales)
+*.json
+*.pdf
+*.log
+.DS_Store
