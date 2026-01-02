@@ -1,6 +1,5 @@
 import sys
 import os
-import subprocess 
 
 # --- VACUNA CONTRA EL ERROR DE RECURSIÓN EN WINDOWS (EXE) ---
 if getattr(sys, 'frozen', False):
@@ -336,6 +335,7 @@ KV_DESIGN = '''
                             disabled: True
                             size_hint_x: 0.5
 
+                    # --- BOTONES AJUSTADOS ---
                     MDBoxLayout:
                         adaptive_height: True
                         spacing: dp(5)
@@ -379,6 +379,7 @@ KV_DESIGN = '''
                         padding: dp(10)
                         md_bg_color: [0.9, 0.9, 0.9, 1]
                         radius: [10, 10, 0, 0]
+                        # --- TÍTULO AJUSTADO ---
                         MDLabel:
                             text: "Ficha Técnica Global\\n(Click para editar)"
                             font_style: "Subtitle1"
@@ -413,7 +414,7 @@ KV_DESIGN = '''
                         size_hint_x: 1
 
                     MDRectangleFlatButton:
-                        text: "Generar Plano"
+                        text: "Generar PDF"
                         on_release: app.smart_pdf_dialog()
                         size_hint_x: 1
                         text_color: 0, 0, 1, 1
@@ -526,6 +527,13 @@ KV_DESIGN = '''
             elevation: 2
             padding: dp(15)
         
+        MDRaisedButton:
+            text: "Limpiar Formulario"
+            font_size: "16sp"
+            on_release: root.reset_herraje_form()
+            size_hint_x: 1
+            md_bg_color: app.theme_cls.accent_color
+        
         MDRectangleFlatButton:
             text: "Cerrar Ventana"
             font_size: "16sp"
@@ -558,79 +566,6 @@ def get_storage_path():
         return dir_path
     else:
         return os.path.expanduser("~/Documents")
-
-# --- LÓGICA DE COMPARTIR / ABRIR (CORREGIDA Y BLINDADA) ---
-def native_share_file(filepath):
-    """
-    Comparte un archivo usando el intent nativo en Android o ABRE el archivo en PC.
-    Incluye manejo de errores para evitar que la app se cierre.
-    """
-    if platform == 'android':
-        try:
-            from jnius import autoclass, cast
-            
-            # 1. Desactivar la seguridad estricta de archivos (El "Truco")
-            try:
-                StrictMode = autoclass('android.os.StrictMode')
-                builder = StrictMode.VmPolicy.Builder()
-                StrictMode.setVmPolicy(builder.build())
-            except Exception as e:
-                print(f"Advertencia StrictMode: {e}")
-
-            # 2. Clases Java necesarias
-            File = autoclass('java.io.File')
-            Intent = autoclass('android.content.Intent')
-            Uri = autoclass('android.net.Uri')
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            String = autoclass('java.lang.String') # IMPORTANTE: Necesario para el título
-
-            # 3. Verificar que el archivo existe
-            file_obj = File(filepath)
-            if not file_obj.exists():
-                show_alert("Error", "El archivo PDF no se encuentra en el almacenamiento.")
-                return
-
-            # 4. Crear el enlace al archivo (URI)
-            uri = Uri.fromFile(file_obj)
-
-            # 5. Configurar el Intent de envío
-            intent = Intent()
-            intent.setAction(Intent.ACTION_SEND)
-            
-            # --- CORRECCIÓN 1: Casting URI a Parcelable ---
-            parcelable_uri = cast('android.os.Parcelable', uri)
-            intent.putExtra(Intent.EXTRA_STREAM, parcelable_uri)
-            
-            intent.setType("application/pdf")
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-
-            # 6. Lanzar la ventana de selección
-            currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-            
-            # --- CORRECCIÓN 2: Crear el título como CharSequence de Java ---
-            # Esto evita el error "No static methods called createChooser"
-            java_title = String("Compartir Plano con...")
-            title_sequence = cast('java.lang.CharSequence', java_title)
-            
-            chooser = Intent.createChooser(intent, title_sequence)
-            currentActivity.startActivity(chooser)
-
-        except Exception as e:
-            # SI OCURRE UN ERROR, LO MOSTRAMOS EN PANTALLA
-            error_msg = str(e)
-            show_alert("Error al Compartir", f"Detalle técnico:\n{error_msg}")
-            
-    else:
-        # Lógica de PC (Abrir archivo directamente)
-        try:
-            filepath = os.path.normpath(filepath)
-            if sys.platform == 'win32':
-                os.startfile(filepath)
-            else:
-                opener = "open" if sys.platform == "darwin" else "xdg-open"
-                subprocess.call([opener, filepath])
-        except Exception as e:
-            show_alert("Info", f"Archivo guardado en:\n{filepath}\n(Error al abrir: {e})")
 
 # --- CLASE DRAWING WIDGET ---
 class DrawingWidget(Widget):
@@ -923,7 +858,6 @@ class PanelDataScreen(BaseContentScreen):
         return True
 
     def open_herraje_dialog(self):
-        # AVISO DE SEGURIDAD
         if not self.validate_panel_dims(): 
             show_alert("Atención", "Debes introducir Ancho y Alto del vidrio antes de añadir herrajes.")
             return
@@ -935,21 +869,34 @@ class PanelDataScreen(BaseContentScreen):
         }
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
-        # SOLUCIÓN PANTALLA NEGRA
+        # --- FIX VENTANA NEGRA ---
+        # 1. Calculamos la altura exacta que queremos (85% de la pantalla)
+        dialog_height = Window.height * 0.85
+        
+        # 2. Creamos un ScrollView con esa altura fija
         container_scroll = ScrollView(
             size_hint_y=None,
-            height=Window.height * 0.8, 
+            height=dialog_height,
             do_scroll_x=False, 
             do_scroll_y=True
         )
 
+        # 3. Importante: Envolvemos el ScrollView en una caja invisible con la MISMA altura.
+        # Esto es lo que obliga a KivyMD a respetar el tamaño.
+        wrapper = MDBoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dialog_height
+        )
+        
         self.herraje_dialog_content.bind(minimum_height=self.herraje_dialog_content.setter('height'))
         container_scroll.add_widget(self.herraje_dialog_content)
+        wrapper.add_widget(container_scroll)
         
         self.herraje_dialog = MDDialog(
             title="Herrajes", 
             type="custom", 
-            content_cls=container_scroll, 
+            content_cls=wrapper, # Pasamos el wrapper rígido, no el scroll directamente
             size_hint=(0.95, None), 
             auto_dismiss=False
         )
@@ -1155,7 +1102,9 @@ class HerrajesPopup(GridLayout):
         elif ht == "perfil imán 45º":
             self._add(c, "Posición:", MDDropdownMenu_Wrapper(["Izquierda", "Derecha"], "Izquierda"), 'lado')
         elif ht == "perfil vierte-aguas":
-            self._add(c, "Posición:", MDLabel(text="Abajo (Fijo)"), 'lado_fixed')
+            # --- FIX TEXTO MONTADO ---
+            # Damos altura fija al Label para que no se pise con el título
+            self._add(c, "Posición:", MDLabel(text="Abajo (Fijo)", size_hint_y=None, height=dp(40)), 'lado_fixed')
         elif ht == "taladro":
              self._add(c, "Diámetro (mm):", MDTextField(), 'diametro')
              self._add(c, "Ref. Vertical:", MDDropdownMenu_Wrapper(["Alta", "Baja"], "Baja"), 'ref_vert')
@@ -1164,9 +1113,18 @@ class HerrajesPopup(GridLayout):
              self._add(c, "Dist. Horiz (mm):", MDTextField(), 'dist_horiz')
 
     def _add(self, c, txt, w, k):
-        b = MDBoxLayout(orientation='vertical', adaptive_height=True, spacing=dp(2))
+        # --- FIX ESPACIADO ---
+        # Añadido padding y spacing extra para separar el título del campo
+        b = MDBoxLayout(
+            orientation='vertical', 
+            adaptive_height=True, 
+            spacing=dp(5), 
+            padding=[0, dp(5), 0, dp(5)]
+        )
         b.add_widget(MDLabel(text=txt, font_style="Caption", theme_text_color="Secondary"))
-        b.add_widget(w); c.add_widget(b); self.detail_widgets[k] = w
+        b.add_widget(w)
+        c.add_widget(b)
+        self.detail_widgets[k] = w
 
     def get_float(self, k):
         try: return float(self.detail_widgets[k].text)
@@ -1207,9 +1165,6 @@ class HerrajesPopup(GridLayout):
             self.panel_data['herrajes'].append(new)
             self.update_current_panel_summary()
             show_snackbar("Herraje añadido.")
-            # LIMPIAR AUTOMÁTICAMENTE EL FORMULARIO
-            self.reset_herraje_form()
-            
         except ValueError:
             show_alert("Error", "Datos inválidos.")
 
@@ -1245,10 +1200,7 @@ class GlassDoorApp(MDApp):
         if platform == 'android':
             from android.permissions import request_permissions, Permission
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
-        
-        # --- FECHA ACTUALIZADA ---
         limit_date = datetime(2026, 2, 28)
-        
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
     def show_expiration_dialog(self):
@@ -1308,10 +1260,7 @@ class GlassDoorApp(MDApp):
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
-            # PRE-RELLENAR NOMBRE DEL PROYECTO
-            default_name = self.project_data.get('proyecto', 'SinTitulo')
             filepath = filedialog.asksaveasfilename(
-                initialfile=default_name,
                 defaultextension=".json",
                 filetypes=[("Archivos JSON", "*.json")],
                 title="Guardar Proyecto Como..."
@@ -1329,13 +1278,10 @@ class GlassDoorApp(MDApp):
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
-            # PRE-RELLENAR NOMBRE DEL PROYECTO
-            default_name = self.project_data.get('proyecto', 'SinTitulo')
             filepath = filedialog.asksaveasfilename(
-                initialfile=default_name,
                 defaultextension=".pdf",
                 filetypes=[("Archivos PDF", "*.pdf")],
-                title="Guardar Plano Como..."
+                title="Guardar PDF Como..."
             )
             root.destroy()
             if filepath:
@@ -1362,9 +1308,7 @@ class GlassDoorApp(MDApp):
 
     # --- LÓGICA ANDROID (Manual con MDDialog) ---
     def open_save_dialog_android(self):
-        # PRE-RELLENAR NOMBRE DEL PROYECTO
-        default_name = self.project_data.get('proyecto', '')
-        self.input_filename = MDTextField(hint_text="Nombre del archivo (sin .json)", text=default_name)
+        self.input_filename = MDTextField(hint_text="Nombre del archivo (sin .json)")
         self.save_dialog = MDDialog(
             title="Guardar Proyecto",
             type="custom",
@@ -1389,16 +1333,14 @@ class GlassDoorApp(MDApp):
         self.save_dialog.dismiss()
 
     def open_save_pdf_dialog_android(self):
-        # PRE-RELLENAR NOMBRE DEL PROYECTO
-        default_name = self.project_data.get('proyecto', '')
-        self.input_pdfname = MDTextField(hint_text="Nombre del Plano (sin .pdf)", text=default_name)
+        self.input_pdfname = MDTextField(hint_text="Nombre del PDF (sin .pdf)")
         self.pdf_dialog = MDDialog(
-            title="Generar Plano",
+            title="Generar PDF",
             type="custom",
             content_cls=self.input_pdfname,
             buttons=[
                 MDRectangleFlatButton(text="Cancelar", on_release=lambda x: self.pdf_dialog.dismiss()),
-                MDRaisedButton(text="Generar", on_release=self.finish_save_pdf_android)
+                MDRaisedButton(text="Guardar PDF", on_release=self.finish_save_pdf_android)
             ],
             auto_dismiss=False
         )
@@ -1467,18 +1409,7 @@ class GlassDoorApp(MDApp):
         try:
             data = fase1_logic.process_panel_data(self.project_data, self.hueco_data, self.panels_raw_data)
             fase2_drawing.generate_pdf_drawing(data, filepath)
-            
-            # --- PREGUNTAR SI ABRIR / COMPARTIR ---
-            dialog = MDDialog(
-                title="Plano Creado",
-                text=f"¿Deseas abrir el plano generado?\n{os.path.basename(filepath)}",
-                buttons=[
-                    MDRectangleFlatButton(text="Cerrar", on_release=lambda x: dialog.dismiss()),
-                    MDRaisedButton(text="ABRIR / COMPARTIR", on_release=lambda x: (dialog.dismiss(), native_share_file(filepath)))
-                ]
-            )
-            dialog.open()
-            
+            create_safe_dialog("Éxito", f"PDF creado:\n{filepath}").open()
         except Exception as e:
             show_alert("Error PDF", str(e))
 
@@ -1500,3 +1431,4 @@ class GlassDoorApp(MDApp):
             show_alert("Error Cargar", str(e))
 
 if __name__ == '__main__': GlassDoorApp().run()
+    
