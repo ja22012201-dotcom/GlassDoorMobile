@@ -595,7 +595,12 @@ def native_share_file(filepath):
             # 5. Configurar el Intent de envío
             intent = Intent()
             intent.setAction(Intent.ACTION_SEND)
-            intent.putExtra(Intent.EXTRA_STREAM, uri)
+            
+            # --- CORRECCIÓN CLAVE: CASTING A PARCELABLE ---
+            # Forzamos a Java a entender que 'uri' es un Parcelable, no un String
+            parcelable_uri = cast('android.os.Parcelable', uri)
+            intent.putExtra(Intent.EXTRA_STREAM, parcelable_uri)
+            
             intent.setType("application/pdf")
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
@@ -912,6 +917,7 @@ class PanelDataScreen(BaseContentScreen):
         return True
 
     def open_herraje_dialog(self):
+        # AVISO DE SEGURIDAD
         if not self.validate_panel_dims(): 
             show_alert("Atención", "Debes introducir Ancho y Alto del vidrio antes de añadir herrajes.")
             return
