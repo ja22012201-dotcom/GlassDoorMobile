@@ -1191,6 +1191,7 @@ class GlassDoorApp(MDApp):
             except Exception:
                 pass
 
+        # --- NUEVA FECHA DE CADUCIDAD ---
         limit_date = datetime(2026, 2, 28)
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
@@ -1260,15 +1261,12 @@ class GlassDoorApp(MDApp):
                 
                 intent.setDataAndType(uri, mime)
                 
-                # --- SOLUCIÓN: Usar "Abrir con..." (Chooser) ---
+                # --- SOLUCIÓN CRASH: No usar createChooser, usar startActivity directo ---
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 
-                # Creamos el Chooser
-                chooser = Intent.createChooser(intent, "Abrir archivo con...")
-                
-                # Lanzamos el Chooser
+                # Lanzar la actividad directamente (Android mostrará el selector si es necesario)
                 currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-                currentActivity.startActivity(chooser)
+                currentActivity.startActivity(intent)
                 
             except Exception as e:
                 show_alert("Error al abrir", f"No se pudo abrir la app externa.\n{e}")
@@ -1280,6 +1278,23 @@ class GlassDoorApp(MDApp):
                 else: subprocess.call(('xdg-open', filepath))
             except Exception as e:
                 show_alert("Error PC", f"No se pudo abrir el archivo.\n{e}")
+
+    # --- LÓGICA DE CONFIRMACIÓN DE SOBRESCRITURA ---
+    def check_and_save(self, filepath, save_callback):
+        """Verifica si el archivo existe y pide confirmación"""
+        if os.path.exists(filepath):
+            dialog = MDDialog(
+                title="¿Sobrescribir?",
+                text="El archivo ya existe. ¿Desea reemplazarlo?",
+                buttons=[
+                    MDRectangleFlatButton(text="No", on_release=lambda x: dialog.dismiss()),
+                    MDRaisedButton(text="Sí", on_release=lambda x: (dialog.dismiss(), save_callback(filepath)))
+                ],
+                auto_dismiss=False
+            )
+            dialog.open()
+        else:
+            save_callback(filepath)
 
     # --- FUNCIONES HÍBRIDAS PARA GUARDAR/CARGAR ---
     def smart_save_dialog(self):
@@ -1376,8 +1391,10 @@ class GlassDoorApp(MDApp):
         folder = get_storage_path()
         if not os.path.exists(folder): os.makedirs(folder)
         filepath = os.path.join(folder, f"{name}.json")
-        self.save_project_to_path(filepath)
         self.save_dialog.dismiss()
+        
+        # Usar la nueva verificación de existencia
+        self.check_and_save(filepath, self.save_project_to_path)
 
     def open_save_pdf_dialog_android(self):
         self.input_pdfname = MDTextField(
@@ -1404,8 +1421,10 @@ class GlassDoorApp(MDApp):
         folder = get_storage_path()
         if not os.path.exists(folder): os.makedirs(folder)
         filepath = os.path.join(folder, f"{name}.pdf")
-        self.generate_pdf_to_path(filepath)
         self.pdf_dialog.dismiss()
+        
+        # Usar la nueva verificación de existencia
+        self.check_and_save(filepath, self.generate_pdf_to_path)
 
     def open_load_dialog_android(self):
         folder = get_storage_path()
@@ -1452,6 +1471,9 @@ class GlassDoorApp(MDApp):
             save_data = {"project_data": dict(self.project_data), "hueco_data": dict(self.hueco_data), "panels_raw_data": list(self.panels_raw_data)}
             with open(filepath, 'w', encoding='utf-8') as f: json.dump(save_data, f, indent=4)
             show_snackbar(f"Guardado: {os.path.basename(filepath)}")
+        except PermissionError:
+            # Capturamos el error específico de Android
+            show_alert("Permiso Denegado", "Android no permite sobrescribir este archivo antiguo.\nPor favor, usa otro nombre.")
         except Exception as e:
             show_alert("Error Guardar", str(e))
 
@@ -1472,6 +1494,8 @@ class GlassDoorApp(MDApp):
             )
             dialog.open()
             
+        except PermissionError:
+            show_alert("Permiso Denegado", "Android no permite sobrescribir este archivo antiguo.\nPor favor, usa otro nombre.")
         except Exception as e:
             show_alert("Error PDF", str(e))
 
