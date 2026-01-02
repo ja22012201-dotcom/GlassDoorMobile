@@ -1183,14 +1183,13 @@ class GlassDoorApp(MDApp):
             
             # --- FIX ERROR PDF (FileUriExposedException) ---
             try:
-                # Esto es un "truco" para permitir abrir archivos desde la app sin FileProvider complejo
                 from jnius import autoclass
                 StrictMode = autoclass('android.os.StrictMode')
                 Builder = autoclass('android.os.StrictMode$VmPolicy$Builder')
                 policy = Builder().build()
                 StrictMode.setVmPolicy(policy)
             except Exception:
-                pass # Si falla, no rompemos la app, solo la función de abrir PDF podría fallar en Android 11+
+                pass
 
         limit_date = datetime(2026, 2, 28)
         if datetime.now() > limit_date: self.show_expiration_dialog()
@@ -1235,7 +1234,6 @@ class GlassDoorApp(MDApp):
         """Devuelve el nombre del proyecto limpio o uno por defecto"""
         raw_name = self.project_data.get('proyecto', '').strip()
         if not raw_name: return "Proyecto_Sin_Nombre"
-        # Limpiamos caracteres inválidos para nombres de archivo
         valid_chars = "-_.() abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         clean_name = ''.join(c for c in raw_name if c in valid_chars)
         return clean_name or "Proyecto"
@@ -1250,28 +1248,32 @@ class GlassDoorApp(MDApp):
                 Uri = autoclass('android.net.Uri')
                 File = autoclass('java.io.File')
                 
-                # Crear el Intent para ver el archivo
+                # Intent para ver el archivo
                 intent = Intent()
                 intent.setAction(Intent.ACTION_VIEW)
                 
-                # Convertir ruta de Python a File de Java
                 file_obj = File(filepath)
                 uri = Uri.fromFile(file_obj)
                 
-                # Detectar tipo MIME básico
                 mime = "application/json"
                 if filepath.endswith(".pdf"): mime = "application/pdf"
                 
                 intent.setDataAndType(uri, mime)
                 
-                # Lanzar la actividad
+                # --- SOLUCIÓN: Usar "Abrir con..." (Chooser) ---
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                
+                # Creamos el Chooser
+                chooser = Intent.createChooser(intent, "Abrir archivo con...")
+                
+                # Lanzamos el Chooser
                 currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-                currentActivity.startActivity(intent)
+                currentActivity.startActivity(chooser)
                 
             except Exception as e:
                 show_alert("Error al abrir", f"No se pudo abrir la app externa.\n{e}")
         else:
-            # En PC (Windows/Mac/Linux)
+            # En PC
             try:
                 if platform == 'win': os.startfile(filepath)
                 elif platform == 'macosx': subprocess.call(('open', filepath))
@@ -1301,7 +1303,7 @@ class GlassDoorApp(MDApp):
             root.withdraw()
             root.attributes("-topmost", True)
             filepath = filedialog.asksaveasfilename(
-                initialfile=self.get_default_filename(), # Nombre por defecto
+                initialfile=self.get_default_filename(),
                 defaultextension=".json",
                 filetypes=[("Archivos JSON", "*.json")],
                 title="Guardar Proyecto Como..."
@@ -1320,7 +1322,7 @@ class GlassDoorApp(MDApp):
             root.withdraw()
             root.attributes("-topmost", True)
             filepath = filedialog.asksaveasfilename(
-                initialfile=self.get_default_filename(), # Nombre por defecto
+                initialfile=self.get_default_filename(),
                 defaultextension=".pdf",
                 filetypes=[("Archivos PDF", "*.pdf")],
                 title="Guardar Plano Como..."
@@ -1350,7 +1352,6 @@ class GlassDoorApp(MDApp):
 
     # --- LÓGICA ANDROID (Manual con MDDialog) ---
     def open_save_dialog_android(self):
-        # Pre-llenamos el nombre
         self.input_filename = MDTextField(
             text=self.get_default_filename(),
             hint_text="Nombre del archivo (sin .json)"
@@ -1379,7 +1380,6 @@ class GlassDoorApp(MDApp):
         self.save_dialog.dismiss()
 
     def open_save_pdf_dialog_android(self):
-        # Pre-llenamos el nombre
         self.input_pdfname = MDTextField(
             text=self.get_default_filename(),
             hint_text="Nombre del Plano (sin .pdf)"
@@ -1460,7 +1460,7 @@ class GlassDoorApp(MDApp):
             data = fase1_logic.process_panel_data(self.project_data, self.hueco_data, self.panels_raw_data)
             fase2_drawing.generate_pdf_drawing(data, filepath)
             
-            # --- NUEVO: OFRECER ABRIR AL INSTANTE ---
+            # --- DIÁLOGO FINAL CON OPCIÓN ABRIR ---
             dialog = MDDialog(
                 title="Plano Generado",
                 text=f"Guardado en:\n{filepath}",
