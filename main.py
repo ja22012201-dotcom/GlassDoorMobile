@@ -1,5 +1,6 @@
 import sys
 import os
+import subprocess
 
 # --- VACUNA CONTRA EL ERROR DE RECURSIÓN EN WINDOWS (EXE) ---
 if getattr(sys, 'frozen', False):
@@ -414,7 +415,7 @@ KV_DESIGN = '''
                         size_hint_x: 1
 
                     MDRectangleFlatButton:
-                        text: "Generar PDF"
+                        text: "Generar Plano"
                         on_release: app.smart_pdf_dialog()
                         size_hint_x: 1
                         text_color: 0, 0, 1, 1
@@ -426,7 +427,6 @@ KV_DESIGN = '''
                         size_hint_x: 1
 
 <HerrajesPopup>:
-    # IMPORTANTE: Fondo blanco para evitar que se vea negro
     md_bg_color: [1, 1, 1, 1] 
     cols: 1
     spacing: dp(20)
@@ -870,25 +870,14 @@ class PanelDataScreen(BaseContentScreen):
         self.herraje_dialog_content = HerrajesPopup(panel_data=data, parent_screen=self)
         
         # --- FIX VENTANA NEGRA ---
-        # 1. Calculamos la altura exacta que queremos (85% de la pantalla)
         dialog_height = Window.height * 0.85
-        
-        # 2. Creamos un ScrollView con esa altura fija
         container_scroll = ScrollView(
             size_hint_y=None,
             height=dialog_height,
             do_scroll_x=False, 
             do_scroll_y=True
         )
-
-        # 3. Importante: Envolvemos el ScrollView en una caja invisible con la MISMA altura.
-        # Esto es lo que obliga a KivyMD a respetar el tamaño.
-        wrapper = MDBoxLayout(
-            orientation="vertical",
-            size_hint_y=None,
-            height=dialog_height
-        )
-        
+        wrapper = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dialog_height)
         self.herraje_dialog_content.bind(minimum_height=self.herraje_dialog_content.setter('height'))
         container_scroll.add_widget(self.herraje_dialog_content)
         wrapper.add_widget(container_scroll)
@@ -896,7 +885,7 @@ class PanelDataScreen(BaseContentScreen):
         self.herraje_dialog = MDDialog(
             title="Herrajes", 
             type="custom", 
-            content_cls=wrapper, # Pasamos el wrapper rígido, no el scroll directamente
+            content_cls=wrapper, 
             size_hint=(0.95, None), 
             auto_dismiss=False
         )
@@ -1103,7 +1092,6 @@ class HerrajesPopup(GridLayout):
             self._add(c, "Posición:", MDDropdownMenu_Wrapper(["Izquierda", "Derecha"], "Izquierda"), 'lado')
         elif ht == "perfil vierte-aguas":
             # --- FIX TEXTO MONTADO ---
-            # Damos altura fija al Label para que no se pise con el título
             self._add(c, "Posición:", MDLabel(text="Abajo (Fijo)", size_hint_y=None, height=dp(40)), 'lado_fixed')
         elif ht == "taladro":
              self._add(c, "Diámetro (mm):", MDTextField(), 'diametro')
@@ -1114,17 +1102,9 @@ class HerrajesPopup(GridLayout):
 
     def _add(self, c, txt, w, k):
         # --- FIX ESPACIADO ---
-        # Añadido padding y spacing extra para separar el título del campo
-        b = MDBoxLayout(
-            orientation='vertical', 
-            adaptive_height=True, 
-            spacing=dp(5), 
-            padding=[0, dp(5), 0, dp(5)]
-        )
+        b = MDBoxLayout(orientation='vertical', adaptive_height=True, spacing=dp(5), padding=[0, dp(5), 0, dp(5)])
         b.add_widget(MDLabel(text=txt, font_style="Caption", theme_text_color="Secondary"))
-        b.add_widget(w)
-        c.add_widget(b)
-        self.detail_widgets[k] = w
+        b.add_widget(w); c.add_widget(b); self.detail_widgets[k] = w
 
     def get_float(self, k):
         try: return float(self.detail_widgets[k].text)
@@ -1200,6 +1180,18 @@ class GlassDoorApp(MDApp):
         if platform == 'android':
             from android.permissions import request_permissions, Permission
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
+            
+            # --- FIX ERROR PDF (FileUriExposedException) ---
+            try:
+                # Esto es un "truco" para permitir abrir archivos desde la app sin FileProvider complejo
+                from jnius import autoclass
+                StrictMode = autoclass('android.os.StrictMode')
+                Builder = autoclass('android.os.StrictMode$VmPolicy$Builder')
+                policy = Builder().build()
+                StrictMode.setVmPolicy(policy)
+            except Exception:
+                pass # Si falla, no rompemos la app, solo la función de abrir PDF podría fallar en Android 11+
+
         limit_date = datetime(2026, 2, 28)
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
@@ -1238,6 +1230,54 @@ class GlassDoorApp(MDApp):
             d = fase1_logic.process_panel_data(self.project_data, self.hueco_data, self.panels_raw_data)
             widget.redraw(d)
         except Exception: pass
+        
+    def get_default_filename(self):
+        """Devuelve el nombre del proyecto limpio o uno por defecto"""
+        raw_name = self.project_data.get('proyecto', '').strip()
+        if not raw_name: return "Proyecto_Sin_Nombre"
+        # Limpiamos caracteres inválidos para nombres de archivo
+        valid_chars = "-_.() abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        clean_name = ''.join(c for c in raw_name if c in valid_chars)
+        return clean_name or "Proyecto"
+
+    # --- NUEVA FUNCIÓN DE ABRIR ARCHIVOS (PC y ANDROID) ---
+    def open_file_external(self, filepath):
+        if platform == 'android':
+            try:
+                from jnius import autoclass, cast
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                Intent = autoclass('android.content.Intent')
+                Uri = autoclass('android.net.Uri')
+                File = autoclass('java.io.File')
+                
+                # Crear el Intent para ver el archivo
+                intent = Intent()
+                intent.setAction(Intent.ACTION_VIEW)
+                
+                # Convertir ruta de Python a File de Java
+                file_obj = File(filepath)
+                uri = Uri.fromFile(file_obj)
+                
+                # Detectar tipo MIME básico
+                mime = "application/json"
+                if filepath.endswith(".pdf"): mime = "application/pdf"
+                
+                intent.setDataAndType(uri, mime)
+                
+                # Lanzar la actividad
+                currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
+                currentActivity.startActivity(intent)
+                
+            except Exception as e:
+                show_alert("Error al abrir", f"No se pudo abrir la app externa.\n{e}")
+        else:
+            # En PC (Windows/Mac/Linux)
+            try:
+                if platform == 'win': os.startfile(filepath)
+                elif platform == 'macosx': subprocess.call(('open', filepath))
+                else: subprocess.call(('xdg-open', filepath))
+            except Exception as e:
+                show_alert("Error PC", f"No se pudo abrir el archivo.\n{e}")
 
     # --- FUNCIONES HÍBRIDAS PARA GUARDAR/CARGAR ---
     def smart_save_dialog(self):
@@ -1261,6 +1301,7 @@ class GlassDoorApp(MDApp):
             root.withdraw()
             root.attributes("-topmost", True)
             filepath = filedialog.asksaveasfilename(
+                initialfile=self.get_default_filename(), # Nombre por defecto
                 defaultextension=".json",
                 filetypes=[("Archivos JSON", "*.json")],
                 title="Guardar Proyecto Como..."
@@ -1279,9 +1320,10 @@ class GlassDoorApp(MDApp):
             root.withdraw()
             root.attributes("-topmost", True)
             filepath = filedialog.asksaveasfilename(
+                initialfile=self.get_default_filename(), # Nombre por defecto
                 defaultextension=".pdf",
                 filetypes=[("Archivos PDF", "*.pdf")],
-                title="Guardar PDF Como..."
+                title="Guardar Plano Como..."
             )
             root.destroy()
             if filepath:
@@ -1308,7 +1350,11 @@ class GlassDoorApp(MDApp):
 
     # --- LÓGICA ANDROID (Manual con MDDialog) ---
     def open_save_dialog_android(self):
-        self.input_filename = MDTextField(hint_text="Nombre del archivo (sin .json)")
+        # Pre-llenamos el nombre
+        self.input_filename = MDTextField(
+            text=self.get_default_filename(),
+            hint_text="Nombre del archivo (sin .json)"
+        )
         self.save_dialog = MDDialog(
             title="Guardar Proyecto",
             type="custom",
@@ -1333,14 +1379,18 @@ class GlassDoorApp(MDApp):
         self.save_dialog.dismiss()
 
     def open_save_pdf_dialog_android(self):
-        self.input_pdfname = MDTextField(hint_text="Nombre del PDF (sin .pdf)")
+        # Pre-llenamos el nombre
+        self.input_pdfname = MDTextField(
+            text=self.get_default_filename(),
+            hint_text="Nombre del Plano (sin .pdf)"
+        )
         self.pdf_dialog = MDDialog(
-            title="Generar PDF",
+            title="Generar Plano",
             type="custom",
             content_cls=self.input_pdfname,
             buttons=[
                 MDRectangleFlatButton(text="Cancelar", on_release=lambda x: self.pdf_dialog.dismiss()),
-                MDRaisedButton(text="Guardar PDF", on_release=self.finish_save_pdf_android)
+                MDRaisedButton(text="Guardar Plano", on_release=self.finish_save_pdf_android)
             ],
             auto_dismiss=False
         )
@@ -1409,7 +1459,19 @@ class GlassDoorApp(MDApp):
         try:
             data = fase1_logic.process_panel_data(self.project_data, self.hueco_data, self.panels_raw_data)
             fase2_drawing.generate_pdf_drawing(data, filepath)
-            create_safe_dialog("Éxito", f"PDF creado:\n{filepath}").open()
+            
+            # --- NUEVO: OFRECER ABRIR AL INSTANTE ---
+            dialog = MDDialog(
+                title="Plano Generado",
+                text=f"Guardado en:\n{filepath}",
+                buttons=[
+                    MDRectangleFlatButton(text="Cerrar", on_release=lambda x: dialog.dismiss()),
+                    MDRaisedButton(text="Abrir / Enviar", on_release=lambda x: (self.open_file_external(filepath), dialog.dismiss()))
+                ],
+                auto_dismiss=False
+            )
+            dialog.open()
+            
         except Exception as e:
             show_alert("Error PDF", str(e))
 
@@ -1431,4 +1493,3 @@ class GlassDoorApp(MDApp):
             show_alert("Error Cargar", str(e))
 
 if __name__ == '__main__': GlassDoorApp().run()
-    
