@@ -582,6 +582,7 @@ def native_share_file(filepath):
             Intent = autoclass('android.content.Intent')
             Uri = autoclass('android.net.Uri')
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            String = autoclass('java.lang.String') # IMPORTANTE: Necesario para el título
 
             # 3. Verificar que el archivo existe
             file_obj = File(filepath)
@@ -596,8 +597,7 @@ def native_share_file(filepath):
             intent = Intent()
             intent.setAction(Intent.ACTION_SEND)
             
-            # --- CORRECCIÓN CLAVE: CASTING A PARCELABLE ---
-            # Forzamos a Java a entender que 'uri' es un Parcelable, no un String
+            # --- CORRECCIÓN 1: Casting URI a Parcelable ---
             parcelable_uri = cast('android.os.Parcelable', uri)
             intent.putExtra(Intent.EXTRA_STREAM, parcelable_uri)
             
@@ -606,11 +606,17 @@ def native_share_file(filepath):
 
             # 6. Lanzar la ventana de selección
             currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-            chooser = Intent.createChooser(intent, "Compartir Plano con...")
+            
+            # --- CORRECCIÓN 2: Crear el título como CharSequence de Java ---
+            # Esto evita el error "No static methods called createChooser"
+            java_title = String("Compartir Plano con...")
+            title_sequence = cast('java.lang.CharSequence', java_title)
+            
+            chooser = Intent.createChooser(intent, title_sequence)
             currentActivity.startActivity(chooser)
 
         except Exception as e:
-            # SI OCURRE UN ERROR, LO MOSTRAMOS EN PANTALLA EN LUGAR DE CERRAR LA APP
+            # SI OCURRE UN ERROR, LO MOSTRAMOS EN PANTALLA
             error_msg = str(e)
             show_alert("Error al Compartir", f"Detalle técnico:\n{error_msg}")
             
@@ -1239,7 +1245,10 @@ class GlassDoorApp(MDApp):
         if platform == 'android':
             from android.permissions import request_permissions, Permission
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
+        
+        # --- FECHA ACTUALIZADA ---
         limit_date = datetime(2026, 2, 28)
+        
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
     def show_expiration_dialog(self):
