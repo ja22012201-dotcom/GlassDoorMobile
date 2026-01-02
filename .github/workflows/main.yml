@@ -1,4 +1,4 @@
-name: Build APK (Portrait Mode Safe)
+name: Build APK (Android Final)
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: '3.10' 
 
-      # 4. Instalar Dependencias de Linux
+      # 4. Instalar Dependencias de Linux (Necesarias para compilar)
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -43,13 +43,14 @@ jobs:
           pip install buildozer
           pip install cython==0.29.33
 
-      # 6. Crear el archivo buildozer.spec
+      # 6. Crear el archivo buildozer.spec (CONFIGURACIÓN DEFINITIVA CON LOGO)
       - name: Create Buildozer Spec
         run: |
           rm -f buildozer.spec
           
           cat <<EOT >> buildozer.spec
           [app]
+          # --- DATOS BÁSICOS ---
           title = GlassDoorApp
           package.name = glassdoor
           package.domain = org.glassdoor
@@ -57,24 +58,34 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Requisitos
+          # --- REQUISITOS (Librerías) ---
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          # --- CAMBIO DE SEGURIDAD: PORTRAIT ---
-          # Esto fuerza la app a verse en VERTICAL (Ideal para teléfonos).
-          # Esta opción es 100% compatible y no dará error.
-          orientation = portrait
+          # --- IMAGEN CORPORATIVA ---
+          # Usa tu archivo icon.png como icono de la app
+          icon.filename = icon.png
+          # Usa la misma imagen para la pantalla de carga
+          presplash.filename = icon.png
           
+          # --- PANTALLA ---
+          # Orientación vertical fija (para evitar errores de giro)
+          orientation = portrait
           fullscreen = 0 
+          
+          # --- PERMISOS ANDROID ---
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
-          # Configuración Android
+          # --- CONFIGURACIÓN TÉCNICA ANDROID ---
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
+          
+          # Fondo BLANCO para la pantalla de carga (para que tu logo resalte)
           android.presplash_color = #FFFFFF
+          
+          # Rama de python-for-android
           p4a.branch = master
           
           [buildozer]
@@ -82,14 +93,14 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 7. Compilar
+      # 7. Compilar el APK
       - name: Build with Buildozer
         run: |
           buildozer -y android debug
 
-      # 8. Subir el APK
+      # 8. Subir el APK resultante
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GlassDoorApp-APK
+          name: GlassDoorApp-v1.0
           path: bin/*.apk
