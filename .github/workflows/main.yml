@@ -27,14 +27,15 @@ jobs:
         with:
           python-version: '3.10' 
 
-      # 4. Instalar Dependencias de Linux (Necesarias para compilar)
+      # 4. Instalar Dependencias de Linux (CORREGIDO: Añadido 'ant')
       - name: Install System Dependencies
         run: |
           sudo apt-get update
+          # Añadimos 'ant' para que Buildozer no intente descargarlo y falle la red
           sudo apt-get install -y \
             zip unzip autoconf libtool pkg-config zlib1g-dev \
             libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
-            libltdl-dev
+            libltdl-dev ant
 
       # 5. Instalar Buildozer y Cython
       - name: Install Buildozer & Cython
@@ -43,7 +44,7 @@ jobs:
           pip install buildozer
           pip install cython==0.29.33
 
-      # 6. Crear el archivo buildozer.spec (CONFIGURACIÓN DEFINITIVA CON LOGO)
+      # 6. Crear el archivo buildozer.spec (CON LOGO)
       - name: Create Buildozer Spec
         run: |
           rm -f buildozer.spec
