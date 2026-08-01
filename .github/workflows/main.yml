@@ -10,20 +10,24 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # 1. Bajar el código
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 2. Configurar Java 17
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
+      # 3. Configurar Python 3.10
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
+      # 4. Instalar dependencias del sistema operativo
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -32,17 +36,18 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev ant python3-dev
 
-      - name: Install Buildozer & Cython (Rama Develop)
+      # 5. Instalar Buildozer y Cython
+      - name: Install Buildozer
         run: |
           pip install --upgrade pip setuptools
           pip install cython==0.29.33
           pip install buildozer
-          # Instalamos la rama de desarrollo que suele tener los enlaces reparados
-          pip install git+https://github.com/kivy/python-for-android.git@develop
+          pip install git+https://github.com/kivy/python-for-android.git@master
 
-      - name: Clean Cache and Create Spec
+      # 6. Crear buildozer.spec (ATENCIÓN: Ya no borramos la caché para no perder progreso)
+      - name: Create Spec
         run: |
-          rm -rf .buildozer ~/.buildozer buildozer.spec
+          rm -f buildozer.spec
           
           cat <<EOT >> buildozer.spec
           [app]
@@ -71,18 +76,32 @@ jobs:
           
           android.presplash_color = #FFFFFF
           
-          # FORZAMOS LA RAMA DEVELOP AQUÍ TAMBIÉN
-          p4a.branch = develop
-          
           [buildozer]
           log_level = 2
           warn_on_root = 0
           EOT
 
-      - name: Build APK
+      # 7. Compilar la aplicación (CON BUCLE CABEZOTA)
+      - name: Build APK (Auto-Retry)
         run: |
-          buildozer -y android debug
+          # El sistema intentará compilar hasta 10 veces seguidas si detecta caída de red.
+          for i in {1..10}; do
+            echo "========================================"
+            echo "INTENTO DE COMPILACIÓN NÚMERO $i..."
+            echo "========================================"
+            
+            # Si buildozer tiene éxito, salimos del bucle (exit 0)
+            buildozer -y android debug && exit 0
+            
+            echo "⚠️ Fallo detectado (posible caída de servidor 502)."
+            echo "Esperando 15 segundos antes de reanudar la descarga..."
+            sleep 15
+          done
+          
+          echo "❌ La compilación falló después de 10 intentos por culpa de la red."
+          exit 1
 
+      # 8. Subir el archivo APK resultante
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
