@@ -7,7 +7,6 @@ on:
 
 jobs:
   build:
-    # FIJAMOS LA VERSIÓN ESTABLE DE LINUX (Evita los fallos de la actualización de GitHub)
     runs-on: ubuntu-22.04
 
     steps:
@@ -28,7 +27,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 4. Instalar dependencias exactas del sistema
+      # 4. Instalar dependencias del sistema operativo
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -37,14 +36,15 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev ant python3-dev
 
-      # 5. Instalar Buildozer y Cython estables
+      # 5. Instalar Buildozer y Cython
       - name: Install Buildozer & Cython
         run: |
           pip install --upgrade pip setuptools
           pip install cython==0.29.33
-          pip install buildozer==1.5.0
+          pip install buildozer
+          pip install git+https://github.com/kivy/python-for-android.git
 
-      # 6. Limpieza de cachés antiguas y creación de buildozer.spec
+      # 6. Limpieza de cachés antiguas y creación de buildozer.spec con espejos actualizados
       - name: Clean Cache and Create Spec
         run: |
           rm -rf .buildozer ~/.buildozer buildozer.spec
@@ -75,6 +75,10 @@ jobs:
           android.archs = arm64-v8a
           
           android.presplash_color = #FFFFFF
+          
+          # Forzar espejos actualizados de python-for-android
+          p4a.fork = kivy
+          p4a.branch = master
           
           [buildozer]
           log_level = 2
