@@ -36,7 +36,7 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev ant python3-dev
 
-      # 5. Instalar Buildozer y Cython
+      # 5. Instalar Buildozer
       - name: Install Buildozer
         run: |
           pip install --upgrade pip setuptools
@@ -44,7 +44,7 @@ jobs:
           pip install buildozer
           pip install git+https://github.com/kivy/python-for-android.git@master
 
-      # 6. Crear buildozer.spec (ATENCIÓN: Ya no borramos la caché para no perder progreso)
+      # 6. Crear buildozer.spec
       - name: Create Spec
         run: |
           rm -f buildozer.spec
@@ -81,24 +81,24 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 7. Compilar la aplicación (CON BUCLE CABEZOTA)
+      # 7. Compilar la aplicación (CON EL TRUCO DEL ESPEJO DE DESCARGA)
       - name: Build APK (Auto-Retry)
+        env:
+          # ¡AQUÍ ESTÁ LA MAGIA! Le decimos que no use GNU Savannah y use SourceForge
+          P4A_FREETYPE_URL: "https://downloads.sourceforge.net/project/freetype/freetype2/{version}/freetype-{version}.tar.gz"
         run: |
-          # El sistema intentará compilar hasta 10 veces seguidas si detecta caída de red.
           for i in {1..10}; do
             echo "========================================"
             echo "INTENTO DE COMPILACIÓN NÚMERO $i..."
             echo "========================================"
             
-            # Si buildozer tiene éxito, salimos del bucle (exit 0)
             buildozer -y android debug && exit 0
             
-            echo "⚠️ Fallo detectado (posible caída de servidor 502)."
-            echo "Esperando 15 segundos antes de reanudar la descarga..."
+            echo "⚠️ Fallo detectado. Esperando 15 segundos antes de reanudar..."
             sleep 15
           done
           
-          echo "❌ La compilación falló después de 10 intentos por culpa de la red."
+          echo "❌ La compilación falló después de 10 intentos."
           exit 1
 
       # 8. Subir el archivo APK resultante
