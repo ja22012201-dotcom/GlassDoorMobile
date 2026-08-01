@@ -8,47 +8,31 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Usamos el entorno aislado oficial creado por el equipo de Kivy
+    container:
+      image: kivy/buildozer:latest
 
     steps:
-      # 1. Bajar el código
+      # 1. Obtener el código del repositorio
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. Preparar Java 17
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      # 3. Preparar Python 3.10
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10' 
-
-      # 4. Instalar Dependencias de Linux
-      - name: Install System Dependencies
+      # 2. Asegurar que exista icon.png incluso si se subió con otro nombre
+      - name: Prepare Icon File
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            zip unzip autoconf libtool pkg-config zlib1g-dev \
-            libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
-            libltdl-dev ant python3-dev
+          if [ ! -f "icon.png" ]; then
+            echo "Buscando archivos de logo alternativos..."
+            if [ -f "logo silver.png" ]; then
+              cp "logo silver.png" icon.png
+            elif [ -f "logo_silver.png" ]; then
+              cp "logo_silver.png" icon.png
+            fi
+          fi
 
-      # 5. Instalar Buildozer y Cython
-      - name: Install Buildozer & Cython
+      # 3. Crear archivo buildozer.spec optimizado
+      - name: Create Buildozer Spec
         run: |
-          pip install --upgrade pip setuptools
-          pip install cython==0.29.33
-          pip install buildozer
-
-      # 6. LIMPIEZA DE CACHÉ Y CREACIÓN DE SPECS
-      - name: Clean Cache and Create Buildozer Spec
-        run: |
-          # Eliminar cualquier rastro de descargas previas o corruptas
-          rm -rf .buildozer ~/.buildozer buildozer.spec
-          
+          rm -f buildozer.spec
           cat <<EOT >> buildozer.spec
           [app]
           # --- DATOS BÁSICOS ---
@@ -73,29 +57,27 @@ jobs:
           # --- PERMISOS ANDROID ---
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
-          # --- CONFIGURACIÓN TÉCNICA ANDROID ---
+          # --- CONFIGURACIÓN TÉCNICA ---
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # Fondo BLANCO para la pantalla de carga
+          # Fondo blanco para la pantalla de carga
           android.presplash_color = #FFFFFF
-          
-          p4a.branch = master
           
           [buildozer]
           log_level = 2
           warn_on_root = 0
           EOT
 
-      # 7. Compilar el APK desde cero
-      - name: Build with Buildozer
+      # 4. Compilar el APK dentro del contenedor
+      - name: Build APK with Buildozer
         run: |
           buildozer -y android debug
 
-      # 8. Subir el APK resultante
+      # 5. Guardar el archivo APK resultante
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
