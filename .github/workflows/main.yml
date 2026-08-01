@@ -36,24 +36,27 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev ant python3-dev
 
-      # 5. Instalar Buildozer
-      - name: Install Buildozer
+      # 5. Instalar Buildozer y p4a
+      - name: Install Buildozer & p4a
         run: |
           pip install --upgrade pip setuptools
           pip install cython==0.29.33
           pip install buildozer
           pip install git+https://github.com/kivy/python-for-android.git@master
 
-      # 6. INYECCIÓN MANUAL DEL ARCHIVO CAÍDO (¡La magia!)
-      - name: Inject Freetype to Cache (Bypass Savannah 502)
+      # 6. HACKEAR LA RECETA DE FREETYPE (Adiós Error 502)
+      - name: Hack the Freetype Recipe (BYPASS SAVANNAH)
         run: |
-          echo "Creando carpeta secreta de Buildozer..."
-          mkdir -p ~/.buildozer/android/packages/freetype
-          echo "Descargando Freetype desde servidor alternativo seguro..."
-          curl -L -o ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz
-          echo "✅ Archivo inyectado con éxito. Buildozer se saltará la descarga."
+          # Buscamos dónde está instalado python-for-android en la máquina de GitHub
+          P4A_DIR=$(python -c "import pythonforandroid; print(pythonforandroid.__path__[0])")
+          echo "Directorio de p4a: $P4A_DIR"
+          
+          # Editamos el archivo original para cambiar la URL rota por la de SourceForge
+          sed -i 's|https://download.savannah.gnu.org/releases/freetype/freetype-{version}.tar.gz|https://downloads.sourceforge.net/project/freetype/freetype2/{version}/freetype-{version}.tar.gz|g' $P4A_DIR/recipes/freetype/__init__.py
+          
+          echo "✅ URL parcheada con éxito en el código fuente. Ya no usará Savannah."
 
-      # 7. Crear receta de la app
+      # 7. Crear Spec
       - name: Create Spec
         run: |
           rm -f buildozer.spec
