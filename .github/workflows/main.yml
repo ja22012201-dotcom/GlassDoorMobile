@@ -27,24 +27,24 @@ jobs:
         with:
           python-version: '3.10' 
 
-      # 4. Instalar Dependencias de Linux (CORREGIDO: Añadido 'ant')
+      # 4. Instalar Dependencias de Linux
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          # Añadimos 'ant' para que Buildozer no intente descargarlo y falle la red
           sudo apt-get install -y \
             zip unzip autoconf libtool pkg-config zlib1g-dev \
             libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
             libltdl-dev ant
 
-      # 5. Instalar Buildozer y Cython
-      - name: Install Buildozer & Cython
+      # 5. Instalar Buildozer y Python-for-Android desde GitHub (SOLUCIÓN AL ERROR 502)
+      - name: Install Buildozer, p4a & Cython
         run: |
           pip install --upgrade pip
-          pip install buildozer
           pip install cython==0.29.33
+          pip install git+https://github.com/kivy/buildozer.git
+          pip install git+https://github.com/kivy/python-for-android.git
 
-      # 6. Crear el archivo buildozer.spec (CON LOGO)
+      # 6. Crear el archivo buildozer.spec
       - name: Create Buildozer Spec
         run: |
           rm -f buildozer.spec
@@ -59,17 +59,14 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # --- REQUISITOS (Librerías) ---
-          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
+          # --- REQUISITOS ---
+          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android
           
           # --- IMAGEN CORPORATIVA ---
-          # Usa tu archivo icon.png como icono de la app
           icon.filename = icon.png
-          # Usa la misma imagen para la pantalla de carga
           presplash.filename = icon.png
           
           # --- PANTALLA ---
-          # Orientación vertical fija (para evitar errores de giro)
           orientation = portrait
           fullscreen = 0 
           
@@ -83,10 +80,9 @@ jobs:
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # Fondo BLANCO para la pantalla de carga (para que tu logo resalte)
+          # Fondo BLANCO para la pantalla de carga
           android.presplash_color = #FFFFFF
           
-          # Rama de python-for-android
           p4a.branch = master
           
           [buildozer]
