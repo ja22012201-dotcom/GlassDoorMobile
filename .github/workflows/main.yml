@@ -7,33 +7,15 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    # VOLVEMOS A LA CÁMARA ACORAZADA ESTABLE (Kivy Docker)
-    container:
-      image: kivy/buildozer:latest
+    runs-on: ubuntu-22.04
 
     steps:
-      # 1. Bajar el código
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. HACKEO DESDE DENTRO DEL CONTENEDOR (Adiós Savannah 502)
-      - name: Hack Freetype in Docker
-        run: |
-          echo "Buscando las herramientas de Android en el contenedor estable..."
-          P4A_DIR=$(/home/user/.venv/bin/python3 -c "import pythonforandroid; print(pythonforandroid.__path__[0])")
-          echo "Ruta encontrada: $P4A_DIR"
-          
-          echo "Reemplazando el servidor roto (GNU Savannah) por SourceForge..."
-          sed -i 's|download.savannah.gnu.org/releases/freetype|downloads.sourceforge.net/project/freetype/freetype2/{version}|g' "$P4A_DIR/recipes/freetype/__init__.py"
-          echo "✅ Parche inyectado. Buildozer ya no se atascará en Freetype."
-
-      # 3. Crear Spec estandarizado
       - name: Create Spec
         run: |
-          rm -f buildozer.spec
-          
-          cat <<EOT >> buildozer.spec
+          cat <<EOT > buildozer.spec
           [app]
           title = GlassDoorApp
           package.name = glassdoor
@@ -42,22 +24,20 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab,android
+          # Versiones estables fijadas para evitar betas experimentales
+          requirements = python3==3.10.14,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
           
           icon.filename = icon.png
           presplash.filename = icon.png
-          
           orientation = portrait
           fullscreen = 0 
           
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
-          
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
-          
           android.presplash_color = #FFFFFF
           
           [buildozer]
@@ -65,14 +45,16 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 4. Compilar (Con versiones estables, sin Python 3.14)
-      - name: Build APK
-        run: |
-          buildozer -y android debug
+      # Acción oficial de la comunidad Kivy (Gestiona dependencias y cachés de forma automática)
+      - name: Build with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
+        with:
+          command: buildozer android debug
+          buildozer_version: master
 
-      # 5. Guardar APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: GlassDoorApp-v1.0
-          path: bin/*.apk
+          path: ${{ steps.buildozer.outputs.filename }}
