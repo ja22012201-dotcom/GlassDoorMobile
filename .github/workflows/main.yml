@@ -34,20 +34,20 @@ jobs:
           sudo apt-get install -y \
             zip unzip autoconf libtool pkg-config zlib1g-dev \
             libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
-            libltdl-dev ant
+            libltdl-dev ant python3-dev
 
-      # 5. Instalar Buildozer y Python-for-Android desde GitHub (SOLUCIÓN AL ERROR 502)
-      - name: Install Buildozer, p4a & Cython
+      # 5. Instalar Buildozer y Cython
+      - name: Install Buildozer & Cython
         run: |
-          pip install --upgrade pip
+          pip install --upgrade pip setuptools
           pip install cython==0.29.33
-          pip install git+https://github.com/kivy/buildozer.git
-          pip install git+https://github.com/kivy/python-for-android.git
+          pip install buildozer
 
-      # 6. Crear el archivo buildozer.spec
-      - name: Create Buildozer Spec
+      # 6. LIMPIEZA DE CACHÉ Y CREACIÓN DE SPECS
+      - name: Clean Cache and Create Buildozer Spec
         run: |
-          rm -f buildozer.spec
+          # Eliminar cualquier rastro de descargas previas o corruptas
+          rm -rf .buildozer ~/.buildozer buildozer.spec
           
           cat <<EOT >> buildozer.spec
           [app]
@@ -60,7 +60,7 @@ jobs:
           version = 1.0
           
           # --- REQUISITOS ---
-          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android
+          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab,android
           
           # --- IMAGEN CORPORATIVA ---
           icon.filename = icon.png
@@ -90,7 +90,7 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 7. Compilar el APK
+      # 7. Compilar el APK desde cero
       - name: Build with Buildozer
         run: |
           buildozer -y android debug
