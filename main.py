@@ -1192,7 +1192,7 @@ class GlassDoorApp(MDApp):
                 pass
 
         # --- NUEVA FECHA DE CADUCIDAD ---
-        limit_date = datetime(2126, 2, 28)
+        limit_date = datetime(2126, 1, 28)
         if datetime.now() > limit_date: self.show_expiration_dialog()
 
     def show_expiration_dialog(self):
