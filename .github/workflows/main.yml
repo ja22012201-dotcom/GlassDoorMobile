@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 4. Instalar dependencias del sistema operativo
+      # 4. Instalar dependencias del sistema
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -36,26 +36,14 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev ant python3-dev
 
-      # 5. Instalar Buildozer (USANDO VERSIÓN ESTABLE, NADA DE "MASTER")
+      # 5. Instalar Buildozer estable
       - name: Install Buildozer & Cython
         run: |
           pip install --upgrade pip setuptools
           pip install cython==0.29.33
           pip install buildozer
 
-      # 6. HACKEAR LA RECETA DE FREETYPE EN LA VERSIÓN ESTABLE (Adiós Error 502)
-      - name: Hack the Freetype Recipe (BYPASS SAVANNAH)
-        run: |
-          # Buscamos dónde está instalado python-for-android
-          P4A_DIR=$(python -c "import pythonforandroid; print(pythonforandroid.__path__[0])")
-          echo "Directorio de p4a: $P4A_DIR"
-          
-          # Editamos el archivo original para cambiar la URL rota por SourceForge
-          sed -i 's|download.savannah.gnu.org/releases/freetype|downloads.sourceforge.net/project/freetype/freetype2/{version}|g' $P4A_DIR/recipes/freetype/__init__.py
-          
-          echo "✅ URL parcheada con éxito. Ya no usará Savannah."
-
-      # 7. Crear Spec (CON PILLOW FIJADO A VERSIÓN ESTABLE)
+      # 6. Crear Spec con dependencias estables
       - name: Create Spec
         run: |
           rm -rf .buildozer ~/.buildozer buildozer.spec
@@ -69,7 +57,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # FIJAMOS PILLOW A 10.2.0 PARA EVITAR ERRORES DE COMPILACIÓN
+          # Fijamos Pillow a 10.2.0 para compatibilidad absoluta
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
           
           icon.filename = icon.png
@@ -93,7 +81,25 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 8. Compilar la aplicación
+      # 7. INICIALIZAR Y PARCHEAR (El orden correcto)
+      - name: Init Buildozer & Hack Freetype
+        run: |
+          echo "Despertando a Buildozer para que descargue sus herramientas estables..."
+          buildozer android p4a -- --help || true
+          
+          echo "Buscando la receta defectuosa de Freetype en su interior..."
+          RECIPE_FILE=".buildozer/android/platform/python-for-android/pythonforandroid/recipes/freetype/__init__.py"
+          
+          if [ -f "$RECIPE_FILE" ]; then
+            echo "¡Archivo encontrado! Aplicando el bypass al servidor GNU..."
+            sed -i 's|download.savannah.gnu.org/releases/freetype|downloads.sourceforge.net/project/freetype/freetype2/{version}|g' "$RECIPE_FILE"
+            echo "✅ Parche aplicado con éxito."
+          else
+            echo "❌ No se encontró el archivo. Buildozer no se inicializó."
+            exit 1
+          fi
+
+      # 8. Compilar la aplicación final
       - name: Build APK
         run: |
           buildozer -y android debug
