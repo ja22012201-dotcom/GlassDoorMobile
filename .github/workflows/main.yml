@@ -8,34 +8,49 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Usamos el entorno aislado oficial creado por el equipo de Kivy
-    container:
-      image: kivy/buildozer:latest
 
     steps:
-      # 1. Obtener el código del repositorio
+      # 1. Descargar el código
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. Asegurar que exista icon.png incluso si se subió con otro nombre
-      - name: Prepare Icon File
-        run: |
-          if [ ! -f "icon.png" ]; then
-            echo "Buscando archivos de logo alternativos..."
-            if [ -f "logo silver.png" ]; then
-              cp "logo silver.png" icon.png
-            elif [ -f "logo_silver.png" ]; then
-              cp "logo_silver.png" icon.png
-            fi
-          fi
+      # 2. Configurar Java 17
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-      # 3. Crear archivo buildozer.spec optimizado
-      - name: Create Buildozer Spec
+      # 3. Configurar Python 3.10
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 4. Instalar dependencias del sistema operativo
+      - name: Install System Dependencies
         run: |
-          rm -f buildozer.spec
+          sudo apt-get update
+          sudo apt-get install -y \
+            zip unzip autoconf libtool pkg-config zlib1g-dev \
+            libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
+            libltdl-dev ant python3-dev
+
+      # 5. Instalar Buildozer y actualizar python-for-android con los enlaces corregidos
+      - name: Install Buildozer & Updated p4a
+        run: |
+          pip install --upgrade pip setuptools
+          pip install cython==0.29.33
+          pip install buildozer
+          pip install --upgrade git+https://github.com/kivy/python-for-android.git
+
+      # 6. Limpiar restos antiguos y crear buildozer.spec
+      - name: Clean Cache and Create Spec
+        run: |
+          rm -rf .buildozer ~/.buildozer buildozer.spec
+          
           cat <<EOT >> buildozer.spec
           [app]
-          # --- DATOS BÁSICOS ---
           title = GlassDoorApp
           package.name = glassdoor
           package.domain = org.glassdoor
@@ -43,41 +58,37 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # --- REQUISITOS ---
           requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab,android
           
-          # --- IMAGEN CORPORATIVA ---
           icon.filename = icon.png
           presplash.filename = icon.png
           
-          # --- PANTALLA ---
           orientation = portrait
           fullscreen = 0 
           
-          # --- PERMISOS ANDROID ---
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
           
-          # --- CONFIGURACIÓN TÉCNICA ---
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           
-          # Fondo blanco para la pantalla de carga
           android.presplash_color = #FFFFFF
+          
+          p4a.branch = master
           
           [buildozer]
           log_level = 2
           warn_on_root = 0
           EOT
 
-      # 4. Compilar el APK dentro del contenedor
-      - name: Build APK with Buildozer
+      # 7. Compilar la aplicación
+      - name: Build APK
         run: |
           buildozer -y android debug
 
-      # 5. Guardar el archivo APK resultante
+      # 8. Subir el paquete APK final
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
