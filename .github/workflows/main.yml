@@ -36,30 +36,17 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev ant python3-dev
 
-      # 5. Instalar Buildozer y p4a
-      - name: Install Buildozer & p4a
+      # 5. Instalar Buildozer
+      - name: Install Buildozer & Cython
         run: |
           pip install --upgrade pip setuptools
           pip install cython==0.29.33
           pip install buildozer
-          pip install git+https://github.com/kivy/python-for-android.git@master
 
-      # 6. HACKEAR LA RECETA DE FREETYPE (Adiós Error 502)
-      - name: Hack the Freetype Recipe (BYPASS SAVANNAH)
-        run: |
-          # Buscamos dónde está instalado python-for-android en la máquina de GitHub
-          P4A_DIR=$(python -c "import pythonforandroid; print(pythonforandroid.__path__[0])")
-          echo "Directorio de p4a: $P4A_DIR"
-          
-          # Editamos el archivo original para cambiar la URL rota por la de SourceForge
-          sed -i 's|https://download.savannah.gnu.org/releases/freetype/freetype-{version}.tar.gz|https://downloads.sourceforge.net/project/freetype/freetype2/{version}/freetype-{version}.tar.gz|g' $P4A_DIR/recipes/freetype/__init__.py
-          
-          echo "✅ URL parcheada con éxito en el código fuente. Ya no usará Savannah."
-
-      # 7. Crear Spec
+      # 6. Crear buildozer.spec
       - name: Create Spec
         run: |
-          rm -f buildozer.spec
+          rm -rf .buildozer ~/.buildozer buildozer.spec
           
           cat <<EOT >> buildozer.spec
           [app]
@@ -92,6 +79,24 @@ jobs:
           log_level = 2
           warn_on_root = 0
           EOT
+
+      # 7. INYECCIÓN DEL PARCHE EN EL NÚCLEO DE BUILDOZER
+      - name: Initialize Buildozer and Patch Freetype URL
+        run: |
+          echo "Inicializando el motor de Buildozer..."
+          # Al pedirle la ayuda, forzamos a Buildozer a instalar python-for-android en la carpeta oculta
+          buildozer android p4a -- --help || true
+          
+          echo "Buscando la receta defectuosa de Freetype..."
+          RECIPE_FILE=".buildozer/android/platform/python-for-android/pythonforandroid/recipes/freetype/__init__.py"
+          
+          if [ -f "$RECIPE_FILE" ]; then
+            echo "¡Archivo encontrado! Reemplazando el servidor caído (GNU Savannah) por SourceForge..."
+            sed -i 's|download.savannah.gnu.org/releases/freetype|downloads.sourceforge.net/project/freetype/freetype2/{version}|g' "$RECIPE_FILE"
+            echo "✅ Parche aplicado con éxito."
+          else
+            echo "❌ No se encontró el archivo de la receta."
+          fi
 
       # 8. Compilar la aplicación
       - name: Build APK
