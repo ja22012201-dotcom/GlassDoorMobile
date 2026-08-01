@@ -7,10 +7,11 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # FIJAMOS LA VERSIÓN ESTABLE DE LINUX (Evita los fallos de la actualización de GitHub)
+    runs-on: ubuntu-22.04
 
     steps:
-      # 1. Descargar el código
+      # 1. Bajar el código del repositorio
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -27,24 +28,23 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 4. Instalar dependencias del sistema operativo
+      # 4. Instalar dependencias exactas del sistema
       - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             zip unzip autoconf libtool pkg-config zlib1g-dev \
-            libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
+            libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev ant python3-dev
 
-      # 5. Instalar Buildozer y actualizar python-for-android con los enlaces corregidos
-      - name: Install Buildozer & Updated p4a
+      # 5. Instalar Buildozer y Cython estables
+      - name: Install Buildozer & Cython
         run: |
           pip install --upgrade pip setuptools
           pip install cython==0.29.33
-          pip install buildozer
-          pip install --upgrade git+https://github.com/kivy/python-for-android.git
+          pip install buildozer==1.5.0
 
-      # 6. Limpiar restos antiguos y crear buildozer.spec
+      # 6. Limpieza de cachés antiguas y creación de buildozer.spec
       - name: Clean Cache and Create Spec
         run: |
           rm -rf .buildozer ~/.buildozer buildozer.spec
@@ -76,8 +76,6 @@ jobs:
           
           android.presplash_color = #FFFFFF
           
-          p4a.branch = master
-          
           [buildozer]
           log_level = 2
           warn_on_root = 0
@@ -88,7 +86,7 @@ jobs:
         run: |
           buildozer -y android debug
 
-      # 8. Subir el paquete APK final
+      # 8. Subir el archivo APK resultante
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
