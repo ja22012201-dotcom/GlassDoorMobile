@@ -1,60 +1,121 @@
-name: Build APK (Android Final)
 
-on:
-  push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
+Navegación del repositorio
+Código
+Asuntos
+Solicitudes de extracción
+Agentes
+Comportamiento
+Proyectos
+Wiki
+Seguridad y calidad
+Perspectivas
+Ajustes
+Compilación de APK (Android Final)
+Actualizar main.py #85
+Todos los trabajos
+Detalles de la carrera
+Archivo de flujo de trabajo para esta ejecución
+.github/workflows/main.yml en 5b1b994
+nombre : Compilación APK (Android Final)
 
-jobs:
-  build:
-    runs-on: ubuntu-22.04
+en :
+  empujar :
+    ramas : [ "principal", "maestro" ]
+  flujo_de_trabajo :
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+empleos :
+  construir :
+    se ejecuta en : ubuntu-latest
 
-      - name: Create Spec
-        run: |
-          cat <<EOT > buildozer.spec
-          [app]
-          title = GlassDoorApp
-          package.name = glassdoor
-          package.domain = org.glassdoor
-          source.dir = .
+    pasos :
+      # 1. Bajar el código
+      - nombre : Código de pago
+        usos : actions/checkout@v4
+
+      # 2. Preparar Java 17
+      - nombre : Configuración de Java
+        usos : actions/setup-java@v4
+        con :
+          distribución : ' temurin '
+          versión de java : ' 17 '
+
+      # 3. Preparar Python 3.10
+      - nombre : Configurar Python
+        usos : actions/setup-python@v5
+        con :
+          Versión de Python : ' 3.10 ' 
+
+      # 4. Instalar Dependencias de Linux (CORREGIDO: Añadido 'ant')
+      - nombre : Instalar dependencias del sistema
+        correr : |
+          sudo apt-get update
+          # Añadimos 'ant' para que Buildozer no intente descargarlo y falle la red
+          sudo apt-get install -y \
+            zip unzip autoconf libtool pkg-config zlib1g-dev \
+            libncurses-dev libncursesw5-dev libtinfo-dev cmake libffi-dev libssl-dev \
+            libltdl-dev ant
+      # 5. Instalar Buildozer y Cython
+      - nombre : Instalar Buildozer y Cython
+        correr : |
+          pip install --upgrade pip
+          pip install buildozer
+          pip install cython==0.29.33
+      # 6. Crear el archivo buildozer.spec (CON LOGO)
+      - nombre : Crear especificación de Buildozer
+        correr : |
+          rm -f buildozer.spec
+          
+          cat <<EOT >> buildozer.spec
+          [aplicación]
+          # --- DATOS BÁSICOS ---
+          Título = Aplicación GlassDoor
+          nombre.paquete = glassdoor
+          paquete.dominio = org.glassdoor
+          directorio.source = .
           source.include_exts = py,png,jpg,kv,atlas,json
-          version = 1.0
+          versión = 1.0
           
-          # Versiones estables fijadas para evitar betas experimentales
-          requirements = python3==3.10.14,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
+          # --- REQUISITOS (Librerías) ---
+          Requisitos = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab>=4.0.0,android,openssl,freetype
           
-          icon.filename = icon.png
+          # --- IMAGEN CORPORATIVA ---
+          # Usa tu archivo icon.png como icono de la aplicación
+          icono.nombreArchivo = icono.png
+          # Usa la misma imagen para la pantalla de carga
           presplash.filename = icon.png
-          orientation = portrait
-          fullscreen = 0 
           
+          # --- PANTALLA ---
+          # Orientación vertical fija (para evitar errores de giro)
+          orientación = vertical
+          pantalla completa = 0
+          
+          # --- PERMISOS ANDROID ---
           android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
+          
+          # --- CONFIGURACIÓN TÉCNICA ANDROID ---
           android.api = 33
           android.minapi = 21
           android.ndk = 25b
           android.accept_sdk_license = True
           android.archs = arm64-v8a
+          
+          # Fondo BLANCO para la pantalla de carga (para que tu logo resalte)
           android.presplash_color = #FFFFFF
+          
+          # Rama de python-for-android
+          p4a.rama = maestro
           
           [buildozer]
           log_level = 2
-          warn_on_root = 0
+          advertir_en_raíz = 0
           EOT
-
-      # Acción oficial de la comunidad Kivy (Gestiona dependencias y cachés de forma automática)
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: master
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: GlassDoorApp-v1.0
-          path: ${{ steps.buildozer.outputs.filename }}
+      # 7. Compilar el APK
+      - nombre : Construir con Buildozer
+        correr : |
+          buildozer -y android debug
+      # 8. Subir el APK resultante
+      - nombre : Subir APK
+        usos : actions/upload-artifact@v4
+        con :
+          nombre : GlassDoorApp-v1.0
+          ruta : bin/*.apk
