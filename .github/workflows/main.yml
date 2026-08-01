@@ -44,7 +44,16 @@ jobs:
           pip install buildozer
           pip install git+https://github.com/kivy/python-for-android.git@master
 
-      # 6. Crear buildozer.spec
+      # 6. INYECCIÓN MANUAL DEL ARCHIVO CAÍDO (¡La magia!)
+      - name: Inject Freetype to Cache (Bypass Savannah 502)
+        run: |
+          echo "Creando carpeta secreta de Buildozer..."
+          mkdir -p ~/.buildozer/android/packages/freetype
+          echo "Descargando Freetype desde servidor alternativo seguro..."
+          curl -L -o ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz
+          echo "✅ Archivo inyectado con éxito. Buildozer se saltará la descarga."
+
+      # 7. Crear receta de la app
       - name: Create Spec
         run: |
           rm -f buildozer.spec
@@ -81,27 +90,12 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 7. Compilar la aplicación (CON EL TRUCO DEL ESPEJO DE DESCARGA)
-      - name: Build APK (Auto-Retry)
-        env:
-          # ¡AQUÍ ESTÁ LA MAGIA! Le decimos que no use GNU Savannah y use SourceForge
-          P4A_FREETYPE_URL: "https://downloads.sourceforge.net/project/freetype/freetype2/{version}/freetype-{version}.tar.gz"
+      # 8. Compilar la aplicación
+      - name: Build APK
         run: |
-          for i in {1..10}; do
-            echo "========================================"
-            echo "INTENTO DE COMPILACIÓN NÚMERO $i..."
-            echo "========================================"
-            
-            buildozer -y android debug && exit 0
-            
-            echo "⚠️ Fallo detectado. Esperando 15 segundos antes de reanudar..."
-            sleep 15
-          done
-          
-          echo "❌ La compilación falló después de 10 intentos."
-          exit 1
+          buildozer -y android debug
 
-      # 8. Subir el archivo APK resultante
+      # 9. Subir el archivo APK resultante
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
