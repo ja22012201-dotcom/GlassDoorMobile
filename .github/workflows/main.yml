@@ -10,11 +10,43 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # 1. Descargar el código fuente
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 2. Preparar Java 17
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3. Preparar Python 3.10
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 4. Instalar dependencias base de Linux
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            zip unzip autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+            libltdl-dev ant python3-dev curl
+
+      # 5. Instalar Buildozer estable
+      - name: Install Buildozer
+        run: |
+          pip install --upgrade pip setuptools
+          pip install cython==0.29.33
+          pip install buildozer==1.5.0
+
+      # 6. Crear archivo buildozer.spec con versión de Python estable
       - name: Create Spec
         run: |
+          rm -rf buildozer.spec
           cat <<EOT > buildozer.spec
           [app]
           title = GlassDoorApp
@@ -24,8 +56,8 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Versiones estables fijadas para evitar betas experimentales
-          requirements = python3==3.10.14,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
+          # Forzamos Python 3.11 y Pillow 10.2.0 para evitar errores de compilación C
+          requirements = python3==3.11.5,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
           
           icon.filename = icon.png
           presplash.filename = icon.png
@@ -45,16 +77,30 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # Acción oficial de la comunidad Kivy (Gestiona dependencias y cachés de forma automática)
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: master
+      # 7. Inyectar Freetype directamente en la ruta exacta de la aplicación
+      - name: Pre-download Freetype and Patch Local Recipe
+        run: |
+          # Descargar herramientas en la estructura local del proyecto
+          buildozer android p4a -- --help || true
 
+          # Cambiar la URL en la receta clonada localmente
+          RECIPE=".buildozer/android/platform/python-for-android/pythonforandroid/recipes/freetype/__init__.py"
+          if [ -f "$RECIPE" ]; then
+            sed -i 's|download.savannah.gnu.org/releases/freetype|downloads.sourceforge.net/project/freetype/freetype2/{version}|g' "$RECIPE"
+          fi
+
+          # Guardar el archivo en la ruta interna exacta donde lo busca p4a
+          mkdir -p .buildozer/android/platform/build-arm64-v8a/packages/freetype
+          curl -L -o .buildozer/android/platform/build-arm64-v8a/packages/freetype/freetype-2.14.1.tar.gz https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz
+
+      # 8. Compilar el paquete APK
+      - name: Build APK
+        run: |
+          buildozer -y android debug
+
+      # 9. Subir el artefacto APK descargable
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: GlassDoorApp-v1.0
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: bin/*.apk
