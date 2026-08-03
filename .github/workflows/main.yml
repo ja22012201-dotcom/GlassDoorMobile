@@ -36,14 +36,14 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev ant python3-dev curl
 
-      # 5. Instalar Buildozer estable
+      # 5. Instalar Buildozer
       - name: Install Buildozer
         run: |
           pip install --upgrade pip setuptools
           pip install cython==0.29.33
           pip install buildozer==1.5.0
 
-      # 6. Crear archivo buildozer.spec con versión de Python estable
+      # 6. Crear archivo buildozer.spec emparejando hostpython3 y python3
       - name: Create Spec
         run: |
           rm -rf buildozer.spec
@@ -56,8 +56,8 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Forzamos Python 3.11 y Pillow 10.2.0 para evitar errores de compilación C
-          requirements = python3==3.11.5,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
+          # Emparejamos hostpython3 y python3 a la versión estable 3.11.5
+          requirements = hostpython3==3.11.5,python3==3.11.5,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
           
           icon.filename = icon.png
           presplash.filename = icon.png
@@ -77,28 +77,25 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 7. Inyectar Freetype directamente en la ruta exacta de la aplicación
+      # 7. Parchear la ruta de Freetype
       - name: Pre-download Freetype and Patch Local Recipe
         run: |
-          # Descargar herramientas en la estructura local del proyecto
           buildozer android p4a -- --help || true
 
-          # Cambiar la URL en la receta clonada localmente
           RECIPE=".buildozer/android/platform/python-for-android/pythonforandroid/recipes/freetype/__init__.py"
           if [ -f "$RECIPE" ]; then
             sed -i 's|download.savannah.gnu.org/releases/freetype|downloads.sourceforge.net/project/freetype/freetype2/{version}|g' "$RECIPE"
           fi
 
-          # Guardar el archivo en la ruta interna exacta donde lo busca p4a
           mkdir -p .buildozer/android/platform/build-arm64-v8a/packages/freetype
           curl -L -o .buildozer/android/platform/build-arm64-v8a/packages/freetype/freetype-2.14.1.tar.gz https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz
 
-      # 8. Compilar el paquete APK
+      # 8. Compilar la APK
       - name: Build APK
         run: |
           buildozer -y android debug
 
-      # 9. Subir el artefacto APK descargable
+      # 9. Subir el artefacto APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
