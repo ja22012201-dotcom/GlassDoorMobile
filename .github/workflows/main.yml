@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # 1. Descargar el código fuente de la aplicación
+      # 1. Obtener el código fuente de la app
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 4. Instalar dependencias del sistema operativo
+      # 4. Instalar librerías nativas del sistema
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -43,25 +43,27 @@ jobs:
           pip install cython==0.29.33
           pip install buildozer==1.5.0
 
-      # 6. Clonar python-for-android localmente y reemplazar la URL de Savannah
-      - name: Clone & Patch python-for-android
+      # 6. Pre-clonar python-for-android estable en la ruta interna de Buildozer y parchear Freetype
+      - name: Pre-clone p4a and Patch Freetype
         run: |
-          rm -rf p4a
-          git clone --depth 1 https://github.com/kivy/python-for-android.git p4a
+          # Crear la ruta exacta donde Buildozer busca p4a
+          mkdir -p .buildozer/android/platform
+          
+          # Clonar la versión estable (v2024.01.21) en esa carpeta exacta
+          git clone --depth 1 --branch v2024.01.21 https://github.com/kivy/python-for-android.git .buildozer/android/platform/python-for-android
 
+          # Modificar la URL defectuosa directamente en el archivo clonado
           python3 -c "
-          import os
-          recipe_path = 'p4a/pythonforandroid/recipes/freetype/__init__.py'
-          if os.path.exists(recipe_path):
-              with open(recipe_path, 'r') as f:
-                  content = f.read()
-              content = content.replace('download.savannah.gnu.org/releases/freetype', 'downloads.sourceforge.net/project/freetype/freetype2/{version}')
-              with open(recipe_path, 'w') as f:
-                  f.write(content)
-              print('✅ Receta de Freetype parcheada en el directorio local p4a.')
+          recipe_path = '.buildozer/android/platform/python-for-android/pythonforandroid/recipes/freetype/__init__.py'
+          with open(recipe_path, 'r') as f:
+              content = f.read()
+          content = content.replace('download.savannah.gnu.org/releases/freetype', 'downloads.sourceforge.net/project/freetype/freetype2/{version}')
+          with open(recipe_path, 'w') as f:
+              f.write(content)
+          print('✅ Receta interna de Freetype parcheada correctamente en SourceForge.')
           "
 
-      # 7. Crear buildozer.spec vinculado al directorio p4a local
+      # 7. Generar buildozer.spec con requisitos estables
       - name: Create Spec
         run: |
           rm -f buildozer.spec
@@ -74,7 +76,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
+          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab,android
           
           icon.filename = icon.png
           presplash.filename = icon.png
@@ -89,20 +91,17 @@ jobs:
           android.archs = arm64-v8a
           android.presplash_color = #FFFFFF
           
-          # Forzar a Buildozer a usar la copia local parcheada
-          p4a.source_dir = p4a
-          
           [buildozer]
           log_level = 2
           warn_on_root = 0
           EOT
 
-      # 8. Compilar el APK
+      # 8. Ejecutar la compilación
       - name: Build APK
         run: |
           buildozer -y android debug
 
-      # 9. Subir el archivo APK resultante
+      # 9. Guardar y subir el paquete APK final
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
