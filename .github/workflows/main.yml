@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 4. Instalar librerías nativas de Linux
+      # 4. Instalar librerías nativas del sistema
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -43,7 +43,7 @@ jobs:
           pip install cython==0.29.33
           pip install buildozer==1.5.0
 
-      # 6. Clonar python-for-android estable (v2024.01.21) y aplicar el parche de Freetype
+      # 6. Clonar python-for-android y parchear Freetype con Regex
       - name: Clone p4a and Patch Freetype
         run: |
           rm -rf p4a
@@ -60,7 +60,16 @@ jobs:
           print('✅ Receta de Freetype parcheada correctamente.')
           "
 
-      # 7. Generar el archivo buildozer.spec
+          mkdir -p p4a/packages/freetype
+          mkdir -p ~/.local/share/python-for-android/packages/freetype
+          mkdir -p .buildozer/android/platform/build-arm64-v8a/packages/freetype
+
+          curl -L -o freetype-2.14.1.tar.gz https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz
+          cp freetype-2.14.1.tar.gz p4a/packages/freetype/ 2>/dev/null || true
+          cp freetype-2.14.1.tar.gz ~/.local/share/python-for-android/packages/freetype/ 2>/dev/null || true
+          cp freetype-2.14.1.tar.gz .buildozer/android/platform/build-arm64-v8a/packages/freetype/ 2>/dev/null || true
+
+      # 7. Crear buildozer.spec incluyendo directivas de cflags para p4a
       - name: Create Spec
         run: |
           rm -f buildozer.spec
@@ -88,6 +97,10 @@ jobs:
           android.archs = arm64-v8a
           android.presplash_color = #FFFFFF
           
+          # Desactivar advertencias estrictas de Clang que abortan la compilación
+          android.add_cflags = -w -Wno-error
+          android.add_cxxflags = -w -Wno-error
+          
           p4a.source_dir = ./p4a
           
           [buildozer]
@@ -95,15 +108,18 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 8. Compilar APK relajando los permisos estrictos de Clang en el NDK
+      # 8. Compilar APK
       - name: Build APK
-        env:
-          CFLAGS: "-Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-pointer-types"
-          CXXFLAGS: "-Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-pointer-types"
         run: |
-          buildozer -y android debug
+          buildozer -y android debug || {
+            echo "=========================================="
+            echo "REGISTROS DETALLADOS DEL ERROR DE COMPILACIÓN:"
+            echo "=========================================="
+            find .buildozer/ -name "*.log" -exec tail -n 40 {} + 2>/dev/null
+            exit 1
+          }
 
-      # 9. Subir el paquete APK resultante
+      # 9. Subir el paquete APK final
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
