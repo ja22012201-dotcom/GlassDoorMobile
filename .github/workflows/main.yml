@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # 1. Obtener el código fuente de la app
+      # 1. Obtener el código fuente
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 4. Instalar librerías nativas del sistema
+      # 4. Instalar librerías nativas de Linux
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -43,13 +43,12 @@ jobs:
           pip install cython==0.29.33
           pip install buildozer==1.5.0
 
-      # 6. Clonar python-for-android y parchear Freetype con Regex + Caché
+      # 6. Clonar python-for-android estable (v2024.01.21) y aplicar el parche de Freetype
       - name: Clone p4a and Patch Freetype
         run: |
           rm -rf p4a
           git clone --depth 1 --branch v2024.01.21 https://github.com/kivy/python-for-android.git p4a
           
-          # Parchear la URL mediante Expresión Regular
           python3 -c "
           import re
           recipe_path = 'p4a/pythonforandroid/recipes/freetype/__init__.py'
@@ -58,20 +57,10 @@ jobs:
           code = re.sub(r'url\s*=\s*[\'\"][^\'\"]+[\'\"]', 'url = \'https://downloads.sourceforge.net/project/freetype/freetype2/{version}/freetype-{version}.tar.gz\'', code)
           with open(recipe_path, 'w') as f:
               f.write(code)
-          print('✅ Receta de Freetype parcheada correctamente con Regex.')
+          print('✅ Receta de Freetype parcheada correctamente.')
           "
 
-          # Posicionar el paquete en las rutas de almacenamiento local
-          mkdir -p p4a/packages/freetype
-          mkdir -p ~/.local/share/python-for-android/packages/freetype
-          mkdir -p .buildozer/android/platform/build-arm64-v8a/packages/freetype
-
-          curl -L -o freetype-2.14.1.tar.gz https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz
-          cp freetype-2.14.1.tar.gz p4a/packages/freetype/
-          cp freetype-2.14.1.tar.gz ~/.local/share/python-for-android/packages/freetype/
-          cp freetype-2.14.1.tar.gz .buildozer/android/platform/build-arm64-v8a/packages/freetype/
-
-      # 7. Crear buildozer.spec
+      # 7. Generar el archivo buildozer.spec
       - name: Create Spec
         run: |
           rm -f buildozer.spec
@@ -106,18 +95,15 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 8. Compilar APK con extracción de logs detallada en caso de fallo
+      # 8. Compilar APK relajando los permisos estrictos de Clang en el NDK
       - name: Build APK
+        env:
+          CFLAGS: "-Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-pointer-types"
+          CXXFLAGS: "-Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-pointer-types"
         run: |
-          buildozer -y android debug || {
-            echo "=========================================="
-            echo "REGISTROS DETALLADOS DEL ERROR DE COMPILACIÓN:"
-            echo "=========================================="
-            find .buildozer/ -name "*.log" -exec tail -n 40 {} + 2>/dev/null
-            exit 1
-          }
+          buildozer -y android debug
 
-      # 9. Subir el ejecutable APK final
+      # 9. Subir el paquete APK resultante
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
