@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # 1. Descargar el código del repositorio
+      # 1. Descargar el código fuente de la aplicación
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -27,26 +27,44 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 4. Instalar dependencias base del sistema Linux
+      # 4. Instalar dependencias del sistema operativo
       - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             zip unzip autoconf libtool pkg-config zlib1g-dev \
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
-            libltdl-dev ant python3-dev curl
+            libltdl-dev ant python3-dev curl git
 
-      # 5. Instalar versión estable de Buildozer y Cython
-      - name: Install Buildozer
+      # 5. Instalar Buildozer y Cython
+      - name: Install Buildozer & Cython
         run: |
           pip install --upgrade pip setuptools
           pip install cython==0.29.33
           pip install buildozer==1.5.0
 
-      # 6. Generar archivo buildozer.spec con requisitos estándar
+      # 6. Clonar python-for-android localmente y reemplazar la URL de Savannah
+      - name: Clone & Patch python-for-android
+        run: |
+          rm -rf p4a
+          git clone --depth 1 https://github.com/kivy/python-for-android.git p4a
+
+          python3 -c "
+          import os
+          recipe_path = 'p4a/pythonforandroid/recipes/freetype/__init__.py'
+          if os.path.exists(recipe_path):
+              with open(recipe_path, 'r') as f:
+                  content = f.read()
+              content = content.replace('download.savannah.gnu.org/releases/freetype', 'downloads.sourceforge.net/project/freetype/freetype2/{version}')
+              with open(recipe_path, 'w') as f:
+                  f.write(content)
+              print('✅ Receta de Freetype parcheada en el directorio local p4a.')
+          "
+
+      # 7. Crear buildozer.spec vinculado al directorio p4a local
       - name: Create Spec
         run: |
-          rm -rf buildozer.spec
+          rm -f buildozer.spec
           cat <<EOT > buildozer.spec
           [app]
           title = GlassDoorApp
@@ -56,7 +74,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab,android
+          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
           
           icon.filename = icon.png
           presplash.filename = icon.png
@@ -71,48 +89,20 @@ jobs:
           android.archs = arm64-v8a
           android.presplash_color = #FFFFFF
           
+          # Forzar a Buildozer a usar la copia local parcheada
+          p4a.source_dir = p4a
+          
           [buildozer]
           log_level = 2
           warn_on_root = 0
           EOT
 
-      # 7. Localizar y parchear automáticamente la URL de Freetype en cualquier receta
-      - name: Patch Freetype URL & Pre-download
-        run: |
-          buildozer android p4a -- --help || true
-
-          python3 -c "
-          import os, glob
-          search_paths = [
-              '.buildozer/**/*.py',
-              '/opt/hostedtoolcache/**/*.py'
-          ]
-          for pattern in search_paths:
-              for filepath in glob.glob(pattern, recursive=True):
-                  if filepath.endswith('recipes/freetype/__init__.py'):
-                      try:
-                          with open(filepath, 'r') as f:
-                              content = f.read()
-                          if 'savannah.gnu.org' in content:
-                              content = content.replace('download.savannah.gnu.org/releases/freetype', 'downloads.sourceforge.net/project/freetype/freetype2/{version}')
-                              with open(filepath, 'w') as f:
-                                  f.write(content)
-                              print(f'✅ Parcheado con éxito: {filepath}')
-                      except Exception as e:
-                          print(f'Error al modificar {filepath}: {e}')
-          "
-
-          mkdir -p ~/.buildozer/android/packages/freetype
-          mkdir -p .buildozer/android/platform/build-arm64-v8a/packages/freetype
-          curl -L -o ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz
-          cp ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz .buildozer/android/platform/build-arm64-v8a/packages/freetype/ 2>/dev/null || true
-
-      # 8. Ejecutar la compilación del APK
+      # 8. Compilar el APK
       - name: Build APK
         run: |
           buildozer -y android debug
 
-      # 9. Subir el paquete APK generado
+      # 9. Subir el archivo APK resultante
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
