@@ -10,24 +10,24 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # 1. Descargar el código fuente
+      # 1. Descargar el código del repositorio
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. Preparar Java 17
+      # 2. Configurar Java 17
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 3. Preparar Python 3.10
+      # 3. Configurar Python 3.10
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # 4. Instalar dependencias base de Linux
+      # 4. Instalar dependencias base del sistema Linux
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -36,14 +36,14 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev ant python3-dev curl
 
-      # 5. Instalar Buildozer
+      # 5. Instalar versión estable de Buildozer y Cython
       - name: Install Buildozer
         run: |
           pip install --upgrade pip setuptools
           pip install cython==0.29.33
           pip install buildozer==1.5.0
 
-      # 6. Crear archivo buildozer.spec emparejando hostpython3 y python3
+      # 6. Generar archivo buildozer.spec con requisitos estándar
       - name: Create Spec
         run: |
           rm -rf buildozer.spec
@@ -56,8 +56,7 @@ jobs:
           source.include_exts = py,png,jpg,kv,atlas,json
           version = 1.0
           
-          # Emparejamos hostpython3 y python3 a la versión estable 3.11.5
-          requirements = hostpython3==3.11.5,python3==3.11.5,kivy==2.2.1,kivymd==1.2.0,pillow==10.2.0,reportlab,android
+          requirements = python3,kivy==2.2.1,kivymd==1.2.0,pillow,reportlab,android
           
           icon.filename = icon.png
           presplash.filename = icon.png
@@ -77,25 +76,43 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 7. Parchear la ruta de Freetype
-      - name: Pre-download Freetype and Patch Local Recipe
+      # 7. Localizar y parchear automáticamente la URL de Freetype en cualquier receta
+      - name: Patch Freetype URL & Pre-download
         run: |
           buildozer android p4a -- --help || true
 
-          RECIPE=".buildozer/android/platform/python-for-android/pythonforandroid/recipes/freetype/__init__.py"
-          if [ -f "$RECIPE" ]; then
-            sed -i 's|download.savannah.gnu.org/releases/freetype|downloads.sourceforge.net/project/freetype/freetype2/{version}|g' "$RECIPE"
-          fi
+          python3 -c "
+          import os, glob
+          search_paths = [
+              '.buildozer/**/*.py',
+              '/opt/hostedtoolcache/**/*.py'
+          ]
+          for pattern in search_paths:
+              for filepath in glob.glob(pattern, recursive=True):
+                  if filepath.endswith('recipes/freetype/__init__.py'):
+                      try:
+                          with open(filepath, 'r') as f:
+                              content = f.read()
+                          if 'savannah.gnu.org' in content:
+                              content = content.replace('download.savannah.gnu.org/releases/freetype', 'downloads.sourceforge.net/project/freetype/freetype2/{version}')
+                              with open(filepath, 'w') as f:
+                                  f.write(content)
+                              print(f'✅ Parcheado con éxito: {filepath}')
+                      except Exception as e:
+                          print(f'Error al modificar {filepath}: {e}')
+          "
 
+          mkdir -p ~/.buildozer/android/packages/freetype
           mkdir -p .buildozer/android/platform/build-arm64-v8a/packages/freetype
-          curl -L -o .buildozer/android/platform/build-arm64-v8a/packages/freetype/freetype-2.14.1.tar.gz https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz
+          curl -L -o ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz
+          cp ~/.buildozer/android/packages/freetype/freetype-2.14.1.tar.gz .buildozer/android/platform/build-arm64-v8a/packages/freetype/ 2>/dev/null || true
 
-      # 8. Compilar la APK
+      # 8. Ejecutar la compilación del APK
       - name: Build APK
         run: |
           buildozer -y android debug
 
-      # 9. Subir el artefacto APK
+      # 9. Subir el paquete APK generado
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
