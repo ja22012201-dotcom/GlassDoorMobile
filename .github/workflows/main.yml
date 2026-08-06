@@ -43,12 +43,13 @@ jobs:
           pip install cython==0.29.33
           pip install buildozer==1.5.0
 
-      # 6. Clonar python-for-android y parchear Freetype con Regex
-      - name: Clone p4a and Patch Freetype
+      # 6. Clonar python-for-android y parchear Freetype + desarmar errores de Clang
+      - name: Clone p4a and Patch Toolchain & Freetype
         run: |
           rm -rf p4a
           git clone --depth 1 --branch v2024.01.21 https://github.com/kivy/python-for-android.git p4a
           
+          # Parchear la receta de Freetype a SourceForge
           python3 -c "
           import re
           recipe_path = 'p4a/pythonforandroid/recipes/freetype/__init__.py'
@@ -60,6 +61,24 @@ jobs:
           print('✅ Receta de Freetype parcheada correctamente.')
           "
 
+          # Inyectar banderas -w y -Wno-error en la configuración interna de Clang en p4a
+          python3 -c "
+          import os, glob
+
+          # Desactivar avisos estrictos en el generador de banderas de arquitectura
+          for target in ['p4a/pythonforandroid/archs.py', 'p4a/pythonforandroid/recipe.py']:
+              if os.path.exists(target):
+                  with open(target, 'r') as f:
+                      content = f.read()
+                  content = content.replace('flags = [', 'flags = [\"-w\", \"-Wno-error\", ')
+                  content = content.replace('cflags = [', 'cflags = [\"-w\", \"-Wno-error\", ')
+                  with open(target, 'w') as f:
+                      f.write(content)
+
+          print('✅ Banderas permisivas inyectadas en p4a.')
+          "
+
+          # Pre-posicionar paquete comprimido de Freetype en caché local
           mkdir -p p4a/packages/freetype
           mkdir -p ~/.local/share/python-for-android/packages/freetype
           mkdir -p .buildozer/android/platform/build-arm64-v8a/packages/freetype
@@ -69,7 +88,7 @@ jobs:
           cp freetype-2.14.1.tar.gz ~/.local/share/python-for-android/packages/freetype/ 2>/dev/null || true
           cp freetype-2.14.1.tar.gz .buildozer/android/platform/build-arm64-v8a/packages/freetype/ 2>/dev/null || true
 
-      # 7. Crear buildozer.spec incluyendo directivas de cflags para p4a
+      # 7. Crear el archivo buildozer.spec
       - name: Create Spec
         run: |
           rm -f buildozer.spec
@@ -97,10 +116,6 @@ jobs:
           android.archs = arm64-v8a
           android.presplash_color = #FFFFFF
           
-          # Desactivar advertencias estrictas de Clang que abortan la compilación
-          android.add_cflags = -w -Wno-error
-          android.add_cxxflags = -w -Wno-error
-          
           p4a.source_dir = ./p4a
           
           [buildozer]
@@ -108,9 +123,13 @@ jobs:
           warn_on_root = 0
           EOT
 
-      # 8. Compilar APK
+      # 8. Compilar APK exportando variables de compilador permisivas
       - name: Build APK
         run: |
+          export CFLAGS="-w -Wno-error -Wno-implicit-function-declaration -Wno-incompatible-pointer-types"
+          export CXXFLAGS="-w -Wno-error -Wno-implicit-function-declaration -Wno-incompatible-pointer-types"
+          export LDFLAGS="-w"
+          
           buildozer -y android debug || {
             echo "=========================================="
             echo "REGISTROS DETALLADOS DEL ERROR DE COMPILACIÓN:"
